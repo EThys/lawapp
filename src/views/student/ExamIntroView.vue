@@ -133,7 +133,7 @@ onMounted(() => {
 <template>
   <div
     v-if="ready && session && evaluation"
-    class="min-h-dvh bg-green-darker flex items-start justify-center overflow-y-auto py-6 px-4 sm:items-center sm:p-8"
+    class="min-h-dvh bg-brand-dark flex items-start justify-center overflow-y-auto py-6 px-4 sm:items-center sm:p-8"
   >
     <div class="max-w-lg w-full panel-elevated my-auto">
       <div class="px-5 sm:px-8 pt-6 sm:pt-8 pb-5 sm:pb-6 border-b border-line">

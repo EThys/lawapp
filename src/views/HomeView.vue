@@ -183,7 +183,7 @@ const audiences = ['Jeunes étudiants', 'Professionnels du droit', 'Grand public
       </div>
     </section>
 
-    <section class="droit-section relative bg-green-darker text-white overflow-hidden border-b border-line">
+    <section class="droit-section relative bg-brand-dark text-white overflow-hidden border-b border-line">
       <AppDecorativeBg />
       <div class="absolute inset-0 auth-grid-bg opacity-[0.06]" aria-hidden="true" />
 
@@ -210,7 +210,7 @@ const audiences = ['Jeunes étudiants', 'Professionnels du droit', 'Grand public
             </div>
 
             <RouterLink to="/discover">
-              <AppButton size="lg" class="!bg-white !text-green-dark hover:!bg-green-light hover-lift">
+              <AppButton size="lg" class="!bg-white !text-brand hover:!bg-accent-light hover-lift">
                 Ouvrir le fil Droit Ludique
               </AppButton>
             </RouterLink>
@@ -277,7 +277,7 @@ const audiences = ['Jeunes étudiants', 'Professionnels du droit', 'Grand public
       </div>
     </section>
 
-    <section class="relative bg-green-darker text-white py-16 lg:py-20 overflow-hidden">
+    <section class="relative bg-brand-dark text-white py-16 lg:py-20 overflow-hidden">
       <AppDecorativeBg />
       <div v-reveal class="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
         <div>
@@ -296,7 +296,7 @@ const audiences = ['Jeunes étudiants', 'Professionnels du droit', 'Grand public
             </AppButton>
           </RouterLink>
           <RouterLink v-reveal="{ delay: 160 }" to="/register?role=teacher">
-            <AppButton class="!bg-white !text-green-dark hover:!bg-green-light w-full sm:w-auto hover-lift">
+            <AppButton class="!bg-white !text-brand hover:!bg-accent-light w-full sm:w-auto hover-lift">
               Inscription enseignant
             </AppButton>
           </RouterLink>
@@ -343,10 +343,10 @@ const audiences = ['Jeunes étudiants', 'Professionnels du droit', 'Grand public
   background:
     linear-gradient(
       105deg,
-      color-mix(in srgb, var(--color-green-darker) 10%, transparent) 0%,
+      color-mix(in srgb, var(--color-brand-dark) 10%, transparent) 0%,
       color-mix(in srgb, var(--color-paper-warm) 42%, transparent) 38%,
       color-mix(in srgb, var(--color-paper-warm) 38%, transparent) 62%,
-      color-mix(in srgb, var(--color-green-darker) 9%, transparent) 100%
+      color-mix(in srgb, var(--color-brand-dark) 9%, transparent) 100%
     );
 }
 
@@ -355,9 +355,9 @@ const audiences = ['Jeunes étudiants', 'Professionnels du droit', 'Grand public
     background:
       linear-gradient(
         180deg,
-        color-mix(in srgb, var(--color-green-darker) 8%, transparent) 0%,
+        color-mix(in srgb, var(--color-brand-dark) 8%, transparent) 0%,
         color-mix(in srgb, var(--color-paper-warm) 40%, transparent) 42%,
-        color-mix(in srgb, var(--color-green-darker) 8%, transparent) 100%
+        color-mix(in srgb, var(--color-brand-dark) 8%, transparent) 100%
       );
   }
 }
@@ -461,7 +461,7 @@ const audiences = ['Jeunes étudiants', 'Professionnels du droit', 'Grand public
 }
 
 .hero__title-muted {
-  color: var(--color-green-dark);
+  color: var(--color-brand);
   font-weight: 400;
 }
 
@@ -645,7 +645,7 @@ const audiences = ['Jeunes étudiants', 'Professionnels du droit', 'Grand public
 }
 
 .home-module:hover {
-  box-shadow: 0 12px 40px rgb(22 163 74 / 0.08);
+  box-shadow: 0 12px 40px rgb(25 118 210 / 0.08);
 }
 
 .home-module:hover::before {

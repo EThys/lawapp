@@ -42,7 +42,7 @@ import { ArrowRight } from '@lucide/vue'
 }
 
 .hero-aside-content__title-muted {
-  color: var(--color-green-dark);
+  color: var(--color-brand);
   font-weight: 400;
 }
 

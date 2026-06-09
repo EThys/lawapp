@@ -237,7 +237,7 @@ onUnmounted(() => observer?.disconnect())
 <style scoped>
 .discover-app {
   height: 100dvh;
-  background: var(--color-green-darker);
+  background: var(--color-brand-dark);
   color: white;
   overflow: hidden;
 }
@@ -253,7 +253,7 @@ onUnmounted(() => observer?.disconnect())
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--color-green-darker) 95%, transparent), color-mix(in srgb, var(--color-green-darker) 60%, transparent));
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--color-brand-dark) 95%, transparent), color-mix(in srgb, var(--color-brand-dark) 60%, transparent));
   border-bottom: 1px solid rgb(255 255 255 / 0.06);
 }
 
@@ -525,7 +525,7 @@ onUnmounted(() => observer?.disconnect())
   justify-content: center;
   font-size: 0.625rem;
   font-weight: 700;
-  background: var(--color-green-dark);
+  background: var(--color-brand);
   color: white;
 }
 

@@ -1,28 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 520" fill="none" aria-hidden="true">
-  <rect width="480" height="520" fill="#052e16"/>
+  <rect width="480" height="520" fill="#0a2f6b"/>
   <g opacity="0.08" stroke="#dcfce7" stroke-width="1">
     <path d="M0 80h480M0 160h480M0 240h480M0 320h480M0 400h480"/>
     <path d="M80 0v520M160 0v520M240 0v520M320 0v520M400 0v520"/>
   </g>
   <circle cx="240" cy="248" r="140" fill="url(#glow)" opacity="0.5"/>
   <g transform="translate(240 230)">
-    <path d="M-72 88h144" stroke="#4ade80" stroke-width="2" stroke-linecap="square"/>
+    <path d="M-72 88h144" stroke="#60a5fa" stroke-width="2" stroke-linecap="square"/>
     <path d="M0 88V-56" stroke="#dcfce7" stroke-width="2"/>
-    <path d="M-72 88L-96 -24h48l24 32" stroke="#16a34a" stroke-width="2" stroke-linejoin="miter" fill="none"/>
-    <path d="M72 88L96 -24h-48l-24 32" stroke="#16a34a" stroke-width="2" stroke-linejoin="miter" fill="none"/>
-    <rect x="-18" y="-72" width="36" height="8" fill="#15803d"/>
-    <path d="M-56 120h112v16H-56z" fill="#14532d" stroke="#16a34a" stroke-width="1.5"/>
-    <path d="M-40 136h80v56H-40z" fill="none" stroke="#4ade80" stroke-width="1.5" opacity="0.7"/>
+    <path d="M-72 88L-96 -24h48l24 32" stroke="#1976d2" stroke-width="2" stroke-linejoin="miter" fill="none"/>
+    <path d="M72 88L96 -24h-48l-24 32" stroke="#1976d2" stroke-width="2" stroke-linejoin="miter" fill="none"/>
+    <rect x="-18" y="-72" width="36" height="8" fill="#1565c0"/>
+    <path d="M-56 120h112v16H-56z" fill="#0d47a1" stroke="#1976d2" stroke-width="1.5"/>
+    <path d="M-40 136h80v56H-40z" fill="none" stroke="#60a5fa" stroke-width="1.5" opacity="0.7"/>
   </g>
   <g opacity="0.35">
-    <rect x="56" y="72" width="64" height="88" stroke="#16a34a" stroke-width="1.5" fill="none"/>
-    <rect x="360" y="360" width="56" height="72" stroke="#4ade80" stroke-width="1.5" fill="none"/>
-    <path d="M88 380h48M88 396h64M88 412h40" stroke="#15803d" stroke-width="1.5" stroke-linecap="square"/>
+    <rect x="56" y="72" width="64" height="88" stroke="#1976d2" stroke-width="1.5" fill="none"/>
+    <rect x="360" y="360" width="56" height="72" stroke="#60a5fa" stroke-width="1.5" fill="none"/>
+    <path d="M88 380h48M88 396h64M88 412h40" stroke="#1565c0" stroke-width="1.5" stroke-linecap="square"/>
   </g>
   <defs>
     <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(240 248) rotate(90) scale(140)">
-      <stop stop-color="#16a34a"/>
-      <stop offset="1" stop-color="#052e16" stop-opacity="0"/>
+      <stop stop-color="#1976d2"/>
+      <stop offset="1" stop-color="#0a2f6b" stop-opacity="0"/>
     </radialGradient>
   </defs>
 </svg>

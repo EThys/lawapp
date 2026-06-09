@@ -75,6 +75,12 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'teacher' },
     },
     {
+      path: '/teacher/attendance',
+      name: 'teacher-attendance',
+      component: () => import('@/views/teacher/TeacherAttendanceView.vue'),
+      meta: { requiresAuth: true, role: 'teacher' },
+    },
+    {
       path: '/teacher/courses/:id',
       name: 'teacher-course',
       component: () => import('@/views/teacher/CourseDetailView.vue'),
@@ -90,6 +96,12 @@ const router = createRouter({
       path: '/student/history',
       name: 'student-history',
       component: () => import('@/views/student/StudentHistoryView.vue'),
+      meta: { requiresAuth: true, role: 'student' },
+    },
+    {
+      path: '/student/attendance',
+      name: 'student-attendance',
+      component: () => import('@/views/student/StudentAttendanceView.vue'),
       meta: { requiresAuth: true, role: 'student' },
     },
     {

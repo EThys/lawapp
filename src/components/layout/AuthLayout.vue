@@ -6,7 +6,7 @@ import AppDecorativeBg from '@/components/ui/AppDecorativeBg.vue'
 
 <template>
   <div class="min-h-screen flex">
-    <aside class="hidden lg:flex lg:w-[44%] xl:w-[42%] bg-green-darker text-white flex-col justify-between p-12 xl:p-16 relative overflow-hidden">
+    <aside class="hidden lg:flex lg:w-[44%] xl:w-[42%] bg-brand-dark text-white flex-col justify-between p-12 xl:p-16 relative overflow-hidden">
       <AppDecorativeBg />
       <div class="absolute inset-0 auth-grid-bg opacity-[0.07]" />
 

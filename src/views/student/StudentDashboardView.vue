@@ -10,6 +10,8 @@ import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import AppStatCard from '@/components/ui/AppStatCard.vue'
+import DashboardPage from '@/components/layout/DashboardPage.vue'
+import DashboardSection from '@/components/layout/DashboardSection.vue'
 import { EVALUATION_TYPE_LABELS } from '@/types'
 import { formatDate, getEvaluationAvailabilityMessage, isEvaluationAvailable, downloadDataUrl } from '@/utils/helpers'
 import { Download } from '@lucide/vue'
@@ -293,30 +295,31 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
-    <div v-reveal="100" class="mb-10 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-      <div>
-        <p class="label-caps mb-2">Espace étudiant</p>
-        <h1 class="font-display text-3xl text-ink tracking-tight">
-          Bonjour, {{ auth.currentUser?.firstName }}
-        </h1>
-        <p class="mt-1 text-sm text-ink-muted">
-          {{ auth.currentUser?.institution || auth.currentUser?.email }}
-          <span v-if="auth.currentUser?.studentId" class="text-ink-faint">
-            · {{ auth.currentUser.studentId }}
-          </span>
-        </p>
-      </div>
+  <DashboardPage>
+    <DashboardSection spacing="loose">
+      <div v-reveal="100" class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-6">
+        <div>
+          <p class="label-caps mb-2">Espace étudiant</p>
+          <h1 class="font-display text-3xl text-ink tracking-tight">
+            Bonjour, {{ auth.currentUser?.firstName }}
+          </h1>
+          <p class="mt-1 text-sm text-ink-muted">
+            {{ auth.currentUser?.institution || auth.currentUser?.email }}
+            <span v-if="auth.currentUser?.studentId" class="text-ink-faint">
+              · {{ auth.currentUser.studentId }}
+            </span>
+          </p>
+        </div>
 
-      <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-        <RouterLink to="/student/history" class="w-full sm:w-auto">
-          <AppButton variant="outline" class="w-full sm:w-auto">
-            <History class="w-4 h-4" />
-            Mon historique
-          </AppButton>
-        </RouterLink>
+        <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <RouterLink to="/student/history" class="w-full sm:w-auto">
+            <AppButton variant="outline" class="w-full sm:w-auto">
+              <History class="w-4 h-4" />
+              Mon historique
+            </AppButton>
+          </RouterLink>
 
-      <div ref="notificationsRef" class="relative w-full sm:w-auto">
+          <div ref="notificationsRef" class="relative w-full sm:w-auto">
         <AppButton variant="outline" class="w-full sm:w-auto" @click.stop="showNotifications = !showNotifications">
           <Bell class="w-4 h-4" />
           Notifications
@@ -360,75 +363,76 @@ onUnmounted(() => {
             </button>
           </div>
         </div>
+          </div>
+        </div>
       </div>
-      </div>
-    </div>
+    </DashboardSection>
 
-    <AppCard
-      v-reveal="95"
-      title="Mon historique"
-      subtitle="Évaluations, alertes et présences"
-      class="mb-8"
-      hover
-    >
-      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-        <RouterLink
-          to="/student/history?tab=passed"
-          class="p-4 border border-line bg-paper-warm hover:bg-accent-light/30 transition-colors"
-        >
-          <div class="flex items-center gap-2 mb-2">
-            <ClipboardList class="w-4 h-4 text-accent" />
-            <p class="text-xs font-semibold uppercase tracking-wide text-ink-faint">Passées</p>
-          </div>
-          <p class="text-2xl font-semibold text-ink tabular-nums">{{ stats.completed }}</p>
+    <DashboardSection>
+      <AppCard
+        v-reveal="95"
+        title="Mon historique"
+        subtitle="Évaluations, alertes et présences"
+        hover
+      >
+        <div class="dashboard-tiles dashboard-tiles--4 mb-5">
+          <RouterLink
+            to="/student/history?tab=passed"
+            class="dashboard-tile hover:bg-accent-light/30"
+          >
+            <div class="dashboard-tile__label">
+              <ClipboardList class="w-4 h-4 text-accent" />
+              <p class="dashboard-tile__caption">Passées</p>
+            </div>
+            <p class="dashboard-tile__value">{{ stats.completed }}</p>
+          </RouterLink>
+          <RouterLink
+            to="/student/history?tab=missed"
+            class="dashboard-tile hover:bg-warning-bg/50"
+          >
+            <div class="dashboard-tile__label">
+              <UserX class="w-4 h-4 text-warning" />
+              <p class="dashboard-tile__caption">Manquées</p>
+            </div>
+            <p class="dashboard-tile__value">{{ stats.missed }}</p>
+          </RouterLink>
+          <RouterLink
+            to="/student/history?tab=alerts"
+            class="dashboard-tile hover:bg-danger-bg/40"
+          >
+            <div class="dashboard-tile__label">
+              <ShieldAlert class="w-4 h-4 text-danger" />
+              <p class="dashboard-tile__caption">Alertes</p>
+            </div>
+            <p class="dashboard-tile__value">{{ stats.alerts }}</p>
+          </RouterLink>
+          <RouterLink
+            to="/student/attendance"
+            class="dashboard-tile hover:bg-paper"
+          >
+            <div class="dashboard-tile__label">
+              <CalendarCheck class="w-4 h-4 text-ink-muted" />
+              <p class="dashboard-tile__caption">Présences</p>
+            </div>
+            <p class="dashboard-tile__value">{{ stats.presences }}</p>
+          </RouterLink>
+        </div>
+        <RouterLink to="/student/history">
+          <AppButton variant="outline" size="sm">
+            <History class="w-4 h-4" />
+            Voir tout mon historique
+          </AppButton>
         </RouterLink>
-        <RouterLink
-          to="/student/history?tab=missed"
-          class="p-4 border border-line bg-paper-warm hover:bg-warning-bg/50 transition-colors"
-        >
-          <div class="flex items-center gap-2 mb-2">
-            <UserX class="w-4 h-4 text-warning" />
-            <p class="text-xs font-semibold uppercase tracking-wide text-ink-faint">Manquées</p>
-          </div>
-          <p class="text-2xl font-semibold text-ink tabular-nums">{{ stats.missed }}</p>
-        </RouterLink>
-        <RouterLink
-          to="/student/history?tab=alerts"
-          class="p-4 border border-line bg-paper-warm hover:bg-danger-bg/40 transition-colors"
-        >
-          <div class="flex items-center gap-2 mb-2">
-            <ShieldAlert class="w-4 h-4 text-danger" />
-            <p class="text-xs font-semibold uppercase tracking-wide text-ink-faint">Alertes</p>
-          </div>
-          <p class="text-2xl font-semibold text-ink tabular-nums">{{ stats.alerts }}</p>
-        </RouterLink>
-        <RouterLink
-          to="/student/history?tab=presences"
-          class="p-4 border border-line bg-paper-warm hover:bg-paper transition-colors"
-        >
-          <div class="flex items-center gap-2 mb-2">
-            <CalendarCheck class="w-4 h-4 text-ink-muted" />
-            <p class="text-xs font-semibold uppercase tracking-wide text-ink-faint">Présences</p>
-          </div>
-          <p class="text-2xl font-semibold text-ink tabular-nums">{{ stats.presences }}</p>
-        </RouterLink>
-      </div>
-      <RouterLink to="/student/history">
-        <AppButton variant="outline" size="sm">
-          <History class="w-4 h-4" />
-          Voir tout mon historique
-        </AppButton>
-      </RouterLink>
-    </AppCard>
+      </AppCard>
+    </DashboardSection>
 
-    <AppCard
-      v-if="hasSharedContent"
-      v-reveal="110"
-      title="Partagé par ma salle"
-      subtitle="Codes et liens envoyés par votre professeur"
-      class="mb-8"
-      hover
-    >
+    <DashboardSection v-if="hasSharedContent">
+      <AppCard
+        v-reveal="110"
+        title="Partagé par ma salle"
+        subtitle="Codes et liens envoyés par votre professeur"
+        hover
+      >
       <div
         v-if="error && !foundEvaluation"
         class="mb-4 flex items-start gap-2 p-3 bg-danger-bg border border-danger/15 text-sm text-danger"
@@ -501,22 +505,25 @@ onUnmounted(() => {
           <p class="font-mono text-xl font-bold text-accent tracking-widest">{{ course.enrollmentCode }}</p>
         </div>
       </div>
-    </AppCard>
+      </AppCard>
+    </DashboardSection>
 
-    <div v-reveal class="grid sm:grid-cols-3 gap-px bg-line border border-line mb-10">
+    <DashboardSection spacing="loose">
+      <div v-reveal class="dashboard-stats">
       <AppStatCard :value="stats.total" label="Sessions" :icon="BookOpen" :delay="0" />
       <AppStatCard :value="stats.completed" label="Terminées" :icon="ClipboardList" :delay="1" />
       <AppStatCard :value="stats.average ?? 0" :label="stats.average !== null ? 'Moyenne' : 'Moyenne (n/a)'" suffix="%" :icon="Target" :delay="2" />
-    </div>
+      </div>
+    </DashboardSection>
 
-    <!-- Ma classe -->
-    <AppCard v-if="myCourses.length > 0" v-reveal="120" title="Ma classe" class="mb-8" hover>
-      <div class="divide-y divide-line -mx-6">
-        <div
-          v-for="course in myCourses"
-          :key="course.id"
-          class="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-        >
+    <DashboardSection>
+      <AppCard v-if="myCourses.length > 0" v-reveal="120" title="Ma classe" hover>
+        <div class="card-inset-list">
+          <div
+            v-for="course in myCourses"
+            :key="course.id"
+            class="card-inset-list__item flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          >
           <div>
             <p class="font-medium text-ink">{{ course.name }}</p>
             <p class="text-xs text-ink-muted">{{ course.subject }} · Prof. {{ course.teacherName }}</p>
@@ -536,23 +543,25 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
-      <p class="text-xs text-ink-faint mt-4">
+      <p class="text-xs text-ink-faint mt-4 pt-1">
         Pas encore inscrit ?
         <RouterLink to="/join/group" class="text-accent hover:text-accent-hover font-medium">Rejoindre avec le lien classe</RouterLink>
       </p>
-    </AppCard>
+      </AppCard>
 
-    <AppCard v-else v-reveal="120" title="Ma classe" class="mb-8" hover>
-      <div class="text-center py-8">
-        <Users class="w-10 h-10 text-ink-faint mx-auto mb-3" />
-        <p class="text-sm text-ink-muted mb-4">Rejoignez la salle de votre enseignant avec le lien partagé.</p>
-        <RouterLink to="/join/group">
-          <AppButton variant="outline" size="sm">Rejoindre ma classe</AppButton>
-        </RouterLink>
-      </div>
-    </AppCard>
+      <AppCard v-else v-reveal="120" title="Ma classe" hover>
+        <div class="text-center py-8 px-2">
+          <Users class="w-10 h-10 text-ink-faint mx-auto mb-3" />
+          <p class="text-sm text-ink-muted mb-4">Rejoignez la salle de votre enseignant avec le lien partagé.</p>
+          <RouterLink to="/join/group">
+            <AppButton variant="outline" size="sm">Rejoindre ma classe</AppButton>
+          </RouterLink>
+        </div>
+      </AppCard>
+    </DashboardSection>
 
-    <AppCard v-reveal="130" title="Présence en salle" subtitle="Même réseau WiFi que l'enseignant" class="mb-8" hover>
+    <DashboardSection>
+      <AppCard v-reveal="130" title="Présence en salle" subtitle="Même réseau WiFi que l'enseignant" hover>
       <p class="text-sm text-ink-muted mb-4">
         Quand votre professeur partage la session à la salle, le code apparaît ci-dessus.
         Connectez-vous au WiFi de la salle puis pointez votre présence.
@@ -563,11 +572,13 @@ onUnmounted(() => {
           Pointer ma présence
         </AppButton>
       </RouterLink>
-    </AppCard>
+      </AppCard>
+    </DashboardSection>
 
-    <div class="grid lg:grid-cols-5 gap-8">
-      <div class="lg:col-span-2">
-        <AppCard v-reveal="150" title="Rejoindre une évaluation" hover>
+    <DashboardSection spacing="none">
+      <div class="dashboard-two-col">
+        <div class="dashboard-two-col__aside">
+          <AppCard v-reveal="150" title="Rejoindre une évaluation" hover>
           <div class="space-y-4">
             <AppInput
               v-model="code"
@@ -633,22 +644,22 @@ onUnmounted(() => {
               </AppButton>
             </div>
           </div>
-        </AppCard>
-      </div>
+          </AppCard>
+        </div>
 
-      <div class="lg:col-span-3">
-        <AppCard v-reveal="200" title="Historique" :subtitle="`${mySessions.length} session(s)`" hover>
-          <div v-if="mySessions.length === 0" class="text-center py-12">
-            <ClipboardList class="w-10 h-10 text-ink-faint mx-auto mb-3" />
-            <p class="text-sm text-ink-muted">Aucune évaluation passée pour le moment.</p>
-          </div>
+        <div class="dashboard-two-col__main">
+          <AppCard v-reveal="200" title="Historique" :subtitle="`${mySessions.length} session(s)`" hover>
+            <div v-if="mySessions.length === 0" class="text-center py-12 px-2">
+              <ClipboardList class="w-10 h-10 text-ink-faint mx-auto mb-3" />
+              <p class="text-sm text-ink-muted">Aucune évaluation passée pour le moment.</p>
+            </div>
 
-          <div v-else class="divide-y divide-line -mx-6">
-            <div
-              v-for="session in mySessions"
-              :key="session.id"
-              class="px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-paper/60 transition-colors"
-            >
+            <div v-else class="card-inset-list">
+              <div
+                v-for="session in mySessions"
+                :key="session.id"
+                class="card-inset-list__item card-inset-list__item--hover flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+              >
               <div class="min-w-0 flex-1">
                 <p class="font-medium text-ink truncate">
                   {{ evalStore.getById(session.evaluationId)?.title ?? session.evaluationCode }}
@@ -689,9 +700,10 @@ onUnmounted(() => {
                 </button>
               </div>
             </div>
-          </div>
-        </AppCard>
+            </div>
+          </AppCard>
+        </div>
       </div>
-    </div>
-  </div>
+    </DashboardSection>
+  </DashboardPage>
 </template>

@@ -18,7 +18,7 @@ const display = useCountUp(() => props.value)
 
 <template>
   <div
-    class="bg-white p-5 relative overflow-hidden group hover-lift animate-fade-up"
+    class="bg-white p-4 sm:p-5 relative overflow-hidden group hover-lift animate-fade-up"
     :style="{ animationDelay: `${delay * 80}ms` }"
   >
     <div class="absolute inset-0 animate-shimmer opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />

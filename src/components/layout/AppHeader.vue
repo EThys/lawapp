@@ -202,7 +202,7 @@ onUnmounted(() => {
 
               >
 
-                <span class="w-7 h-7 bg-green-dark text-white text-xs font-semibold flex items-center justify-center">
+                <span class="w-7 h-7 bg-brand-dark text-white text-xs font-semibold flex items-center justify-center">
 
                   {{ initials }}
 

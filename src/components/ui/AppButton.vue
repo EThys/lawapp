@@ -30,7 +30,7 @@ withDefaults(
       size === 'md' && 'px-5 py-2.5 text-sm min-h-11',
       size === 'lg' && 'px-6 py-3 text-base sm:text-sm min-h-12',
       variant === 'primary' && 'bg-accent text-white hover:bg-accent-hover hover:shadow-md hover:shadow-accent/20 hover:-translate-y-px',
-      variant === 'secondary' && 'bg-green-dark text-white hover:bg-accent-hover',
+      variant === 'secondary' && 'bg-brand-dark text-white hover:bg-accent-hover',
       variant === 'outline' && 'border border-line bg-white text-ink hover:bg-paper-warm hover:border-line-strong',
       variant === 'ghost' && 'text-ink-muted hover:text-ink hover:bg-paper-warm',
       variant === 'danger' && 'bg-danger text-white hover:bg-danger/90',

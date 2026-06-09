@@ -7,8 +7,11 @@ import { useCourseStore } from '@/stores/courses'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
-import AppAttendanceCalendar from '@/components/attendance/AppAttendanceCalendar.vue'
-import { useTeacherAttendanceCalendar } from '@/composables/useTeacherAttendanceCalendar'
+import AttendanceListPanel from '@/components/attendance/AttendanceListPanel.vue'
+import AppDataTable from '@/components/ui/AppDataTable.vue'
+import HistoryFilterBar from '@/components/history/HistoryFilterBar.vue'
+import { useTeacherAttendanceList } from '@/composables/useTeacherAttendanceList'
+import type { AttendanceListType } from '@/utils/attendanceTable'
 import type { ExamSession, SessionStatus } from '@/types'
 import { SESSION_STATUS_LABELS, VIOLATION_TYPE_LABELS } from '@/types'
 import { formatDate } from '@/utils/helpers'
@@ -27,7 +30,6 @@ import {
   X,
   FileSpreadsheet,
   FileText,
-  Search,
 } from '@lucide/vue'
 
 type TabId = 'submitted' | 'cheaters' | 'all' | 'absences'
@@ -49,7 +51,6 @@ const activeTab = ref<TabId>((route.query.tab as TabId) || 'submitted')
 const searchQuery = ref('')
 const evaluationFilter = ref('all')
 const selectedSessionId = ref<string | null>(null)
-const absenceCourseFilter = ref('all')
 
 watch(activeTab, (tab) => {
   router.replace({ query: { ...route.query, tab } })
@@ -57,18 +58,23 @@ watch(activeTab, (tab) => {
 
 const teacherId = computed(() => auth.currentUser?.id ?? '')
 
-const teacherAttendanceRecords = computed(() =>
-  teacherId.value ? courseStore.getAttendanceHistoryForTeacher(teacherId.value) : []
-)
-
 const {
-  selectedDate: selectedPresenceDate,
-  absenceRows,
-  presenceCalendarMarks,
-  absenceRowForMark,
-} = useTeacherAttendanceCalendar({
-  attendanceRecords: teacherAttendanceRecords,
+  search: absenceSearch,
   courseFilter: absenceCourseFilter,
+  typeFilter: absenceTypeFilter,
+  selectedDate: selectedPresenceDate,
+  myCourses,
+  calendarMarks: presenceCalendarMarks,
+  absenceRowForMark,
+  totalAbsences,
+  absenceRows,
+  filteredRows: filteredTeacherAttendanceRows,
+  tableRows: attendanceTableRows,
+  selectedDateLabel: absenceDateLabel,
+} = useTeacherAttendanceList({
+  teacherUserId: teacherId,
+  getAttendanceRecords: (id) => courseStore.getAttendanceHistoryForTeacher(id),
+  getCourses: () => courseStore.getCoursesForTeacher(teacherId.value),
   getCourseById: (id) => courseStore.getById(id),
   getUserById: (id) => auth.getUserById(id),
 })
@@ -93,7 +99,18 @@ const counts = computed(() => ({
     (s) => s.violations.length > 0 || s.status === 'failed'
   ).length,
   all: allSessions.value.length,
+  absences: totalAbsences.value,
 }))
+
+const sessionColumns = [
+  { key: 'student', label: 'Étudiant' },
+  { key: 'studentId', label: 'Identifiant', hideOnMobile: true },
+  { key: 'evaluation', label: 'Évaluation' },
+  { key: 'date', label: 'Date', hideOnMobile: true },
+  { key: 'score', label: 'Score', class: 'tabular-nums' },
+  { key: 'status', label: 'Statut' },
+  { key: 'alerts', label: 'Alertes', class: 'tabular-nums', hideOnMobile: true },
+]
 
 const filteredSessions = computed(() => {
   let list = allSessions.value
@@ -124,8 +141,20 @@ const filteredSessions = computed(() => {
   return list
 })
 
-const myCourses = computed(() =>
-  teacherId.value ? courseStore.getCoursesForTeacher(teacherId.value) : []
+const sessionTableRows = computed(() =>
+  filteredSessions.value.map((s) => ({
+    id: s.id,
+    session: s,
+    student: studentDisplayName(s),
+    studentId: s.studentId,
+    evaluation: evaluationTitleById.value.get(s.evaluationId) ?? s.evaluationCode,
+    date: s.submittedAt ? formatDate(s.submittedAt) : formatDate(s.startedAt),
+    score: s.score !== undefined ? `${s.score}/${s.maxScore}` : '—',
+    status: SESSION_STATUS_LABELS[s.status],
+    statusKey: s.status,
+    alerts: s.violations.length > 0 ? String(s.violations.length) : '—',
+    violationCount: s.violations.length,
+  }))
 )
 
 const selectedSession = computed(() =>
@@ -151,6 +180,10 @@ function openSession(session: ExamSession) {
   selectedSessionId.value = session.id
 }
 
+function openSessionRow(row: Record<string, unknown>) {
+  openSession((row as { session: ExamSession }).session)
+}
+
 function closeSession() {
   selectedSessionId.value = null
 }
@@ -158,14 +191,14 @@ function closeSession() {
 function exportRows(): string[][] {
   if (activeTab.value === 'absences') {
     return [
-      ['Date', 'Salle', 'Présents', 'Absents', 'Total inscrits', 'Liste absents'],
-      ...absenceRows.value.map((r) => [
+      ['Date', 'Salle', 'Étudiant', 'Identifiant', 'Statut', 'Marqué à'],
+      ...filteredTeacherAttendanceRows.value.map((r) => [
         r.date,
         r.courseName,
-        String(r.presentCount),
-        String(r.absentCount),
-        String(r.totalEnrolled),
-        r.absentStudents.map((s) => `${s.name} (${s.studentId})`).join('; ') || '—',
+        r.studentName,
+        r.studentId,
+        r.type === 'present' ? 'Présent' : 'Absent',
+        r.markedAtLabel ?? '—',
       ]),
     ]
   }
@@ -261,86 +294,49 @@ function studentDisplayName(session: ExamSession) {
         <component :is="tab.icon" class="w-4 h-4" />
         {{ tab.label }}
         <span
-          v-if="tab.id !== 'absences'"
           class="text-xs tabular-nums px-1.5 py-0.5 rounded-full"
           :class="activeTab === tab.id ? 'bg-white/20' : 'bg-paper-warm'"
         >
-          {{ counts[tab.id as 'submitted' | 'cheaters' | 'all'] }}
+          {{ counts[tab.id as keyof typeof counts] }}
         </span>
       </button>
     </div>
 
     <template v-if="activeTab !== 'absences'">
-      <div v-reveal="120" class="flex flex-col sm:flex-row gap-3 mb-6">
-        <div class="relative flex-1">
-          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-faint pointer-events-none" />
-          <input
-            v-model="searchQuery"
-            type="search"
-            placeholder="Rechercher un étudiant ou une évaluation…"
-            class="w-full pl-10 pr-4 py-2.5 min-h-11 border border-line bg-white text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20"
-          />
-        </div>
-        <select
-          v-model="evaluationFilter"
-          class="px-4 py-2.5 min-h-11 border border-line bg-white text-ink focus:outline-none focus:border-accent sm:min-w-[14rem]"
-        >
-          <option value="all">Toutes les évaluations</option>
-          <option v-for="ev in myEvaluations" :key="ev.id" :value="ev.id">
-            {{ ev.title }}
-          </option>
-        </select>
-      </div>
+      <HistoryFilterBar
+        v-model:search="searchQuery"
+        v-model:evaluation-filter="evaluationFilter"
+        :show-evaluation-filter="myEvaluations.length > 0"
+        :evaluation-options="myEvaluations.map((e) => ({ id: e.id, title: e.title }))"
+        search-placeholder="Rechercher un étudiant ou une évaluation…"
+      />
 
       <AppCard
         :title="tabs.find((t) => t.id === activeTab)?.label ?? 'Sessions'"
         :subtitle="`${filteredSessions.length} entrée(s)`"
       >
-        <div v-if="filteredSessions.length === 0" class="text-center py-12 text-sm text-ink-muted">
-          Aucune session pour ce filtre.
-        </div>
-
-        <div v-else class="divide-y divide-line -mx-6">
-          <button
-            v-for="session in filteredSessions"
-            :key="session.id"
-            type="button"
-            class="w-full text-left px-4 sm:px-6 py-4 hover:bg-paper/60 transition-colors"
-            @click="openSession(session)"
-          >
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div class="min-w-0 flex-1">
-                <p class="font-medium text-ink truncate">
-                  {{ studentDisplayName(session) }}
-                  <span class="text-ink-faint font-normal text-sm">· {{ session.studentId }}</span>
-                </p>
-                <p class="text-sm text-ink-muted truncate mt-0.5">
-                  {{ evaluationTitleById.get(session.evaluationId) ?? session.evaluationCode }}
-                </p>
-                <p class="text-xs text-ink-faint mt-1">
-                  {{ session.submittedAt ? formatDate(session.submittedAt) : formatDate(session.startedAt) }}
-                </p>
-              </div>
-              <div class="flex flex-wrap items-center gap-2 sm:flex-shrink-0">
-                <span
-                  v-if="session.score !== undefined"
-                  class="text-sm font-semibold tabular-nums text-ink"
-                >
-                  {{ session.score }}/{{ session.maxScore }}
-                </span>
-                <AppBadge :variant="statusVariant(session.status)">
-                  {{ SESSION_STATUS_LABELS[session.status] }}
-                </AppBadge>
-                <AppBadge
-                  v-if="session.violations.length > 0"
-                  variant="danger"
-                >
-                  {{ session.violations.length }} alerte(s)
-                </AppBadge>
-              </div>
-            </div>
-          </button>
-        </div>
+        <AppDataTable
+          :columns="sessionColumns"
+          :rows="sessionTableRows"
+          empty-message="Aucune session pour ce filtre."
+          clickable
+          @row-click="openSessionRow"
+        >
+          <template #cell-status="{ row }">
+            <AppBadge :variant="statusVariant((row as { statusKey: SessionStatus }).statusKey)">
+              {{ row.status }}
+            </AppBadge>
+          </template>
+          <template #cell-alerts="{ row }">
+            <AppBadge
+              v-if="(row as { violationCount: number }).violationCount > 0"
+              variant="danger"
+            >
+              {{ row.alerts }} alerte(s)
+            </AppBadge>
+            <span v-else class="text-ink-faint">—</span>
+          </template>
+        </AppDataTable>
       </AppCard>
     </template>
 
@@ -349,105 +345,29 @@ function studentDisplayName(session: ExamSession) {
         Créez une salle pour enregistrer les présences et consulter l'historique des absences.
       </div>
 
-      <template v-else>
-        <div v-reveal="120" class="mb-6">
-          <select
-            v-model="absenceCourseFilter"
-            class="w-full sm:w-auto px-4 py-2.5 min-h-11 border border-line bg-white text-ink focus:outline-none focus:border-accent"
-          >
-            <option value="all">Toutes les salles</option>
-            <option v-for="course in myCourses" :key="course.id" :value="course.id">
-              {{ course.name }}
-            </option>
-          </select>
-        </div>
-
-        <AppCard
-          title="Calendrier des présences"
-          :subtitle="`${absenceRows.length} séance(s) enregistrée(s)`"
-        >
-          <div v-if="absenceRows.length === 0" class="text-center py-12 text-sm text-ink-muted">
-            Aucune présence enregistrée pour le moment.
-          </div>
-
-          <AppAttendanceCalendar
-            v-else
-            v-model:selected-date="selectedPresenceDate"
-            :marks="presenceCalendarMarks"
-          >
-            <template #detail="{ marks }">
-              <div class="space-y-4 mt-2">
-                <article
-                  v-for="mark in marks"
-                  :key="mark.id"
-                  class="border border-line p-4 bg-white text-sm"
-                >
-                  <template v-if="absenceRowForMark(mark)">
-                    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
-                      <div>
-                        <p class="font-medium text-ink">{{ mark.title }}</p>
-                        <p class="text-xs text-ink-muted mt-0.5">{{ mark.subtitle }}</p>
-                      </div>
-                      <div class="flex flex-wrap gap-2">
-                        <AppBadge variant="success">
-                          {{ absenceRowForMark(mark)!.presentCount }} présent(s)
-                        </AppBadge>
-                        <AppBadge
-                          v-if="absenceRowForMark(mark)!.absentCount > 0"
-                          variant="danger"
-                        >
-                          {{ absenceRowForMark(mark)!.absentCount }} absent(s)
-                        </AppBadge>
-                      </div>
-                    </div>
-
-                    <div
-                      v-if="absenceRowForMark(mark)!.absentStudents.length > 0"
-                      class="mb-3"
-                    >
-                      <p class="text-xs font-semibold uppercase tracking-wide text-danger mb-2">
-                        Absents
-                      </p>
-                      <ul class="space-y-1">
-                        <li
-                          v-for="student in absenceRowForMark(mark)!.absentStudents"
-                          :key="student.userId"
-                          class="text-ink-muted"
-                        >
-                          {{ student.name }}
-                          <span class="text-ink-faint font-mono text-xs">· {{ student.studentId }}</span>
-                        </li>
-                      </ul>
-                    </div>
-
-                    <details>
-                      <summary class="text-accent font-medium cursor-pointer hover:text-accent-hover">
-                        Voir les présents ({{ absenceRowForMark(mark)!.presentCount }})
-                      </summary>
-                      <ul class="mt-3 space-y-1 pl-1 text-ink-muted">
-                        <li
-                          v-for="record in absenceRowForMark(mark)!.presentRecords"
-                          :key="record.id"
-                        >
-                          {{
-                            (() => {
-                              const u = auth.getUserById(record.studentUserId)
-                              return u ? `${u.lastName} ${u.firstName}` : 'Étudiant'
-                            })()
-                          }}
-                          <span class="text-ink-faint text-xs">
-                            · marqué à {{ formatDate(record.markedAt) }}
-                          </span>
-                        </li>
-                      </ul>
-                    </details>
-                  </template>
-                </article>
-              </div>
-            </template>
-          </AppAttendanceCalendar>
-        </AppCard>
-      </template>
+      <AttendanceListPanel
+        v-else
+        mode="teacher"
+        layout="stacked"
+        dedicated-view-path="/teacher/attendance"
+        export-title="Présences enseignant"
+        :calendar-marks="presenceCalendarMarks"
+        :table-rows="attendanceTableRows"
+        :filtered-count="filteredTeacherAttendanceRows.length"
+        :course-options="myCourses.map((c) => ({ id: c.id, name: c.name }))"
+        :selected-date="selectedPresenceDate"
+        :selected-date-label="absenceDateLabel"
+        :search="absenceSearch"
+        :course-filter="absenceCourseFilter"
+        :type-filter="absenceTypeFilter"
+        :session-count="absenceRows.length"
+        :absence-count="totalAbsences"
+        :absence-row-for-mark="absenceRowForMark"
+        @update:selected-date="selectedPresenceDate = $event"
+        @update:search="absenceSearch = $event"
+        @update:course-filter="absenceCourseFilter = $event"
+        @update:type-filter="absenceTypeFilter = $event as AttendanceListType"
+      />
     </template>
 
     <Teleport to="body">

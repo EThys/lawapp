@@ -20,6 +20,10 @@ import AppStatCard from '@/components/ui/AppStatCard.vue'
 
 import AppEmptyState from '@/components/ui/AppEmptyState.vue'
 
+import DashboardPage from '@/components/layout/DashboardPage.vue'
+
+import DashboardSection from '@/components/layout/DashboardSection.vue'
+
 import AppAttendanceCalendar from '@/components/attendance/AppAttendanceCalendar.vue'
 
 import PresenceSessionPanel from '@/components/teacher/PresenceSessionPanel.vue'
@@ -287,9 +291,11 @@ function shareClassLink() {
 
 <template>
 
-  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+  <DashboardPage>
 
-    <div v-reveal class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-10">
+    <DashboardSection spacing="loose">
+
+    <div v-reveal class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
 
       <div>
 
@@ -353,9 +359,13 @@ function shareClassLink() {
 
     </div>
 
+    </DashboardSection>
 
 
-    <div v-reveal="100" class="grid sm:grid-cols-3 gap-px bg-line border border-line mb-10">
+
+    <DashboardSection spacing="loose">
+
+    <div v-reveal="100" class="dashboard-stats">
 
       <AppStatCard :value="stats.total" label="Évaluations" :icon="ClipboardList" :delay="0" />
 
@@ -365,7 +375,11 @@ function shareClassLink() {
 
     </div>
 
+    </DashboardSection>
 
+
+
+    <DashboardSection>
 
     <AppCard
 
@@ -375,59 +389,57 @@ function shareClassLink() {
 
       subtitle="Réponses, triche et absences"
 
-      class="mb-10"
-
       hover
 
     >
 
-      <div class="grid sm:grid-cols-3 gap-4 mb-5">
+      <div class="dashboard-tiles mb-5">
 
-        <RouterLink to="/teacher/history?tab=submitted" class="p-4 border border-line bg-paper-warm hover:bg-accent-light/30 transition-colors group">
+        <RouterLink to="/teacher/history?tab=submitted" class="dashboard-tile hover:bg-accent-light/30 group">
 
-          <div class="flex items-center gap-2 mb-2">
+          <div class="dashboard-tile__label">
 
             <CheckCircle class="w-4 h-4 text-accent" />
 
-            <p class="text-xs font-semibold uppercase tracking-wide text-ink-faint">Soumissions</p>
+            <p class="dashboard-tile__caption">Soumissions</p>
 
           </div>
 
-          <p class="text-2xl font-semibold text-ink tabular-nums">{{ stats.submitted }}</p>
+          <p class="dashboard-tile__value">{{ stats.submitted }}</p>
 
-          <p class="text-xs text-ink-muted mt-1 group-hover:text-accent">Voir les copies rendues</p>
+          <p class="dashboard-tile__hint group-hover:text-accent">Voir les copies rendues</p>
 
         </RouterLink>
 
-        <RouterLink to="/teacher/history?tab=cheaters" class="p-4 border border-line bg-paper-warm hover:bg-danger-bg/40 transition-colors group">
+        <RouterLink to="/teacher/history?tab=cheaters" class="dashboard-tile hover:bg-danger-bg/40 group">
 
-          <div class="flex items-center gap-2 mb-2">
+          <div class="dashboard-tile__label">
 
             <ShieldAlert class="w-4 h-4 text-danger" />
 
-            <p class="text-xs font-semibold uppercase tracking-wide text-ink-faint">Alertes triche</p>
+            <p class="dashboard-tile__caption">Alertes triche</p>
 
           </div>
 
-          <p class="text-2xl font-semibold text-ink tabular-nums">{{ stats.cheaters }}</p>
+          <p class="dashboard-tile__value">{{ stats.cheaters }}</p>
 
-          <p class="text-xs text-ink-muted mt-1 group-hover:text-danger">Violations & échecs</p>
+          <p class="dashboard-tile__hint group-hover:text-danger">Violations & échecs</p>
 
         </RouterLink>
 
-        <RouterLink to="/teacher/history?tab=absences" class="p-4 border border-line bg-paper-warm hover:bg-paper transition-colors group">
+        <RouterLink to="/teacher/attendance" class="dashboard-tile hover:bg-paper group">
 
-          <div class="flex items-center gap-2 mb-2">
+          <div class="dashboard-tile__label">
 
             <Users class="w-4 h-4 text-ink-muted" />
 
-            <p class="text-xs font-semibold uppercase tracking-wide text-ink-faint">Absences</p>
+            <p class="dashboard-tile__caption">Absences</p>
 
           </div>
 
-          <p class="text-2xl font-semibold text-ink tabular-nums">{{ absenceRows.length }}</p>
+          <p class="dashboard-tile__value">{{ absenceRows.length }}</p>
 
-          <p class="text-xs text-ink-muted mt-1 group-hover:text-accent">{{ totalAbsences }} absence(s) · calendrier</p>
+          <p class="dashboard-tile__hint group-hover:text-accent">{{ totalAbsences }} absence(s) · calendrier</p>
 
         </RouterLink>
 
@@ -447,11 +459,13 @@ function shareClassLink() {
 
     </AppCard>
 
+    </DashboardSection>
 
+
+
+    <DashboardSection v-if="myClass">
 
     <AppCard
-
-      v-if="myClass"
 
       v-reveal="95"
 
@@ -459,13 +473,11 @@ function shareClassLink() {
 
       subtitle="Présences et absences par séance"
 
-      class="mb-10"
-
       hover
 
     >
 
-      <div v-if="absenceRows.length === 0" class="text-center py-10 text-sm text-ink-muted">
+      <div v-if="absenceRows.length === 0" class="text-center py-10 px-2 text-sm text-ink-muted">
 
         Ouvrez une session de présence pour commencer à enregistrer les séances.
 
@@ -615,7 +627,7 @@ function shareClassLink() {
 
       <div v-if="absenceRows.length > 0" class="mt-5 pt-4 border-t border-line">
 
-        <RouterLink to="/teacher/history?tab=absences">
+        <RouterLink to="/teacher/attendance">
 
           <AppButton variant="outline" size="sm">
 
@@ -631,7 +643,11 @@ function shareClassLink() {
 
     </AppCard>
 
+    </DashboardSection>
 
+
+
+    <DashboardSection>
 
     <AppEmptyState
 
@@ -653,7 +669,7 @@ function shareClassLink() {
 
 
 
-    <div v-else v-reveal="150" class="space-y-px border border-line bg-line mb-10">
+    <div v-else v-reveal="150" class="card-inset-list border border-line bg-line">
 
       <div
 
@@ -661,7 +677,7 @@ function shareClassLink() {
 
         :key="evaluation.id"
 
-        class="bg-white p-5 sm:p-6 transition-all duration-300 hover:bg-accent-light/20 hover:pl-7 group"
+        class="card-inset-list__item card-inset-list__item--hover bg-white transition-all duration-300 hover:bg-accent-light/20 group"
 
         :style="{ animationDelay: `${i * 50}ms` }"
 
@@ -744,6 +760,12 @@ function shareClassLink() {
     </div>
 
 
+
+    </DashboardSection>
+
+
+
+    <DashboardSection>
 
     <AppCard
 
@@ -913,7 +935,9 @@ function shareClassLink() {
 
     </AppCard>
 
-  </div>
+    </DashboardSection>
+
+  </DashboardPage>
 
 </template>
 
