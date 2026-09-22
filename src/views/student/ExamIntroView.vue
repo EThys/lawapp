@@ -7,6 +7,7 @@ import {
   examIntroAnticheatRules,
   resolveEvaluationDurationMinutes,
 } from '@/utils/evaluationApiMapper'
+import { requestExamFullscreen } from '@/composables/useAntiCheat'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import { EVALUATION_TYPE_LABELS } from '@/types'
@@ -110,6 +111,17 @@ async function ensurePassageLoaded(): Promise<boolean> {
   }
 }
 
+async function ensureMandatoryFullscreen(): Promise<boolean> {
+  const ev = evaluation.value
+  if (!ev?.antiCheat.requireFullscreen) return true
+  const entered = await requestExamFullscreen()
+  if (!entered) {
+    startError.value =
+      'Le plein écran est obligatoire pour cette épreuve. Autorisez-le dans votre navigateur, puis réessayez.'
+  }
+  return entered
+}
+
 async function startExam() {
   startError.value = ''
   starting.value = true
@@ -135,9 +147,12 @@ async function startExam() {
     }
 
     if (current.status === 'in_progress') {
+      if (!(await ensureMandatoryFullscreen())) return
       await router.push(`/exam/${sessionId}`)
       return
     }
+
+    if (!(await ensureMandatoryFullscreen())) return
 
     const begun = store.beginSession(sessionId)
     if (!begun) {

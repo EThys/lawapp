@@ -296,17 +296,17 @@ export function examIntroAnticheatRules(ev: Evaluation): ExamIntroAnticheatRule[
   if (ac.requireFullscreen) {
     rules.push({
       id: 'fullscreen',
-      title: 'Mode plein écran requis',
+      title: 'Mode plein écran obligatoire',
       detail: allowDoc
-        ? 'Restez en plein écran ; une sortie brève peut être tolérée pour déposer un fichier.'
-        : 'Quitter le plein écran peut entraîner l’arrêt de l’épreuve.',
-      tone: 'warning',
+        ? 'Restez en plein écran. Pour déposer un document, vous pourrez quitter l’écran le temps de choisir le fichier, puis le plein écran se réactive.'
+        : 'L’épreuve démarre en plein écran. Quitter ce mode entraîne l’arrêt de l’épreuve.',
+      tone: 'danger',
     })
   } else if (allowDoc) {
     rules.push({
       id: 'doc-leave',
       title: 'Dépôt de document',
-      detail: 'Vous pourrez quitter le plein écran ou l’onglet uniquement pour joindre un fichier PDF.',
+      detail: 'Pour joindre un PDF, une brève sortie d’onglet peut être nécessaire selon votre navigateur.',
       tone: 'info',
     })
   }

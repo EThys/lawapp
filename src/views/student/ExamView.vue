@@ -90,12 +90,8 @@ const instantFeedbackEnabled = computed(
     (evaluation.value?.settings.instantFeedback ?? true)
 )
 
-/** Quitter l’écran autorisé uniquement si l’épreuve contient un dépôt de document. */
-const allowScreenLeaveForDocument = computed(
-  () =>
-    !!evaluation.value?.questions.some((q) => q.type === 'document') ||
-    !!evaluation.value?.settings.allowDocumentUpload,
-)
+/** Autorisé uniquement pendant la sélection d’un fichier (import document). */
+const documentImportActive = ref(false)
 
 const allowReview = computed(() => evaluation.value?.settings.allowReview ?? false)
 
@@ -135,8 +131,17 @@ const antiCheatRef = shallowRef<ReturnType<typeof useAntiCheat> | null>(null)
 const timerFormatted = computed(() => timerRef.value?.formattedTime.value ?? '00:00')
 const timerUrgency = computed(() => timerRef.value?.urgency.value ?? 'normal')
 const timerProgress = computed(() => timerRef.value?.progress.value ?? 100)
+const requireFullscreen = computed(() => evaluation.value?.antiCheat.requireFullscreen ?? false)
 const isFullscreen = computed(() => antiCheatRef.value?.isFullscreen.value ?? false)
 const fullscreenSupported = computed(() => antiCheatRef.value?.fullscreenSupported ?? false)
+const mustEnterFullscreen = computed(
+  () =>
+    requireFullscreen.value &&
+    fullscreenSupported.value &&
+    !isFullscreen.value &&
+    !examEnded.value &&
+    !documentImportActive.value,
+)
 
 function setAnswer(questionId: string, value: string | boolean, fileName?: string) {
   const existing = answers.value.findIndex((a) => a.questionId === questionId)
@@ -199,17 +204,41 @@ function getTrueFalseClass(value: boolean) {
     : 'border-danger bg-danger-bg text-danger'
 }
 
+async function beginDocumentImport() {
+  documentImportActive.value = true
+  if (requireFullscreen.value && document.fullscreenElement) {
+    try {
+      await document.exitFullscreen()
+    } catch {
+      /* navigateur refuse parfois ; la sélection reste possible */
+    }
+  }
+}
+
+async function endDocumentImport() {
+  documentImportActive.value = false
+  if (requireFullscreen.value) {
+    await antiCheatRef.value?.enterFullscreen()
+  }
+}
+
 async function handleDocumentUpload(questionId: string, event: Event) {
   uploadError.value = ''
   const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
   try {
+    const file = input.files?.[0]
+    if (!file) return
     const { dataUrl, fileName } = await readFileAsDataUrl(file)
     setAnswer(questionId, dataUrl, fileName)
   } catch (e) {
     uploadError.value = e instanceof Error ? e.message : 'Erreur lors du dépôt.'
+  } finally {
+    await endDocumentImport()
   }
+}
+
+async function handleDocumentImportCancel() {
+  await endDocumentImport()
 }
 
 function failExam(reason: string) {
@@ -363,7 +392,7 @@ function initExamRuntime() {
         setTimeout(() => (showWarning.value = false), 4000)
       },
     },
-    { allowScreenLeave: allowScreenLeaveForDocument },
+    { allowScreenLeave: documentImportActive },
   )
 
   timerRef.value.start()
@@ -437,6 +466,18 @@ onUnmounted(() => {
 
 <template>
   <div v-if="evaluation && session" class="h-dvh min-h-dvh bg-paper flex flex-col overflow-hidden">
+    <div
+      v-if="mustEnterFullscreen"
+      class="fixed inset-0 z-[60] bg-brand-dark flex flex-col items-center justify-center p-6 text-center text-white"
+    >
+      <Maximize class="w-10 h-10 text-accent mb-4" />
+      <h2 class="font-display text-lg mb-2">Plein écran obligatoire</h2>
+      <p class="text-sm text-white/75 max-w-sm mb-6">
+        Cette épreuve se déroule en plein écran. Activez-le pour continuer.
+      </p>
+      <AppButton class="min-w-[12rem]" @click="enterFullscreen">Activer le plein écran</AppButton>
+    </div>
+
     <header class="flex-shrink-0 z-30 bg-white border-b border-line shadow-sm pt-safe">
       <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
         <div class="min-w-0">
@@ -743,13 +784,15 @@ onUnmounted(() => {
           <div v-if="currentQuestion.type === 'document'" class="space-y-3 p-5 border border-line bg-paper-warm">
             <p class="text-sm text-ink-muted">Formats acceptés : PDF, Word, images (max. 3 Mo)</p>
             <p class="text-xs text-accent">
-              Vous pouvez quitter l’écran le temps de sélectionner ou récupérer votre document — ce n’est pas une fraude.
+              Au clic sur « Choisir un fichier », vous pourrez quitter le plein écran le temps d’importer ; il se réactive dès que le fichier est déposé.
             </p>
             <input
               type="file"
               accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
               class="block w-full text-sm text-ink file:mr-4 file:py-2 file:px-4 file:border-0 file:bg-accent-light file:text-accent file:font-medium"
+              @click="beginDocumentImport"
               @change="handleDocumentUpload(currentQuestion.id, $event)"
+              @cancel="handleDocumentImportCancel"
             />
             <p v-if="getAnswer(currentQuestion.id)?.fileName" class="text-sm text-accent font-medium">
               Fichier déposé : {{ getAnswer(currentQuestion.id)?.fileName }}
@@ -780,15 +823,6 @@ onUnmounted(() => {
           >
             <ListChecks class="w-4 h-4" />
             <span class="hidden sm:inline">Revoir</span>
-          </button>
-          <button
-            v-if="!isFullscreen && fullscreenSupported"
-            type="button"
-            class="flex items-center justify-center min-h-11 min-w-11 text-ink-faint hover:bg-paper-warm border border-line"
-            title="Plein écran"
-            @click="enterFullscreen"
-          >
-            <Maximize class="w-5 h-5" />
           </button>
         </div>
 
