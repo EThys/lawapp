@@ -1,0 +1,176 @@
+
+=== /api/{version}/protected/reset/password ===
+-- PUT Reset password 
+{
+  "content": {
+    "application/json": {
+      "schema": {
+        "$ref": "#/components/schemas/UserPassword"
+      }
+    }
+  },
+  "required": true
+}
+
+=== /api/{version}/protected/recovery/user/{id} ===
+-- PUT Recovery Account User
+params: [
+  {
+    "name": "id",
+    "in": "path",
+    "required": true,
+    "schema": {
+      "type": "integer",
+      "format": "int64"
+    }
+  }
+]
+
+=== /api/{version}/protected/change/password ===
+-- PUT Change password utilisateur
+{
+  "content": {
+    "application/json": {
+      "schema": {
+        "$ref": "#/components/schemas/UserPassword"
+      }
+    }
+  },
+  "required": true
+}
+
+=== /api/{version}/protected/certification/{userId} ===
+-- PUT certification user
+{
+  "content": {
+    "application/json": {
+      "schema": {
+        "$ref": "#/components/schemas/CertificationState"
+      }
+    }
+  },
+  "required": true
+}
+params: [
+  {
+    "name": "userId",
+    "in": "path",
+    "required": true,
+    "schema": {
+      "type": "integer",
+      "format": "int64"
+    }
+  }
+]
+
+=== /auth/register ===
+-- POST Création utilisateur
+{
+  "content": {
+    "application/json": {
+      "schema": {
+        "$ref": "#/components/schemas/UserRequest"
+      }
+    }
+  },
+  "required": true
+}
+
+=== /auth/login ===
+-- POST Connexion utilisateur
+{
+  "content": {
+    "application/json": {
+      "schema": {
+        "$ref": "#/components/schemas/UserAuth"
+      }
+    }
+  },
+  "required": true
+}
+
+=== /api/{version}/public/otp/validate ===
+-- POST OTP validate account
+{
+  "content": {
+    "application/json": {
+      "schema": {
+        "$ref": "#/components/schemas/VerifyRequest"
+      }
+    }
+  },
+  "required": true
+}
+
+=== /api/{version}/public/otp/generate ===
+-- POST OTP activation send code
+{
+  "content": {
+    "application/json": {
+      "schema": {
+        "$ref": "#/components/schemas/IdentifiantRequest"
+      }
+    }
+  },
+  "required": true
+}
+
+=== /api/{version}/protected/token/refresh ===
+-- POST refresh
+{
+  "content": {
+    "application/json": {
+      "schema": {
+        "$ref": "#/components/schemas/RefreshRequest"
+      }
+    }
+  },
+  "required": true
+}
+
+=== /api/auth/google ===
+-- GET redirectToGoogle
+
+=== /api/{version}/protected/users/delete/user ===
+-- DELETE Delete Account User
+
+=== schema UserPassword ===
+{
+  "type": "object",
+  "properties": {
+    "newPassword": {
+      "type": "string",
+      "maxLength": 2147483647,
+      "minLength": 6
+    }
+  },
+  "required": [
+    "newPassword"
+  ]
+}
+
+=== schema CertificationState ===
+{
+  "type": "object",
+  "properties": {
+    "state": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "state"
+  ]
+}
+
+=== schema TokenPair ===
+{
+  "type": "object",
+  "properties": {
+    "accessToken": {
+      "type": "string"
+    },
+    "refreshToken": {
+      "type": "string"
+    }
+  }
+}

@@ -1,8 +1,34 @@
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, type Plugin, type ProxyOptions } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath, URL } from 'node:url'
 import { scanWifiNetworks, getCurrentWifiSsid } from './server/wifi.mjs'
+import { BACKEND_ORIGIN } from './config/backend-origin'
+
+/** Spring renvoie « Invalid CORS request » si Origin = localhost alors que Host = backend. */
+function backendProxy(target: string, opts?: { spaGetBypass?: boolean }): ProxyOptions {
+  return {
+    target,
+    changeOrigin: true,
+    configure(proxy) {
+      proxy.on('proxyReq', (proxyReq, req) => {
+        proxyReq.removeHeader('origin')
+        proxyReq.removeHeader('referer')
+        console.info(`[LawApp proxy] ${req.method} ${req.url} → ${BACKEND_ORIGIN}`)
+      })
+      proxy.on('error', (err, req) => {
+        console.error(`[LawApp proxy error] ${req.method} ${req.url}`, err.message)
+      })
+    },
+    ...(opts?.spaGetBypass
+      ? {
+          bypass(req) {
+            if (req.method === 'GET') return '/index.html'
+          },
+        }
+      : {}),
+  }
+}
 
 function wifiApiPlugin(): Plugin {
   return {
@@ -64,8 +90,28 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
-  preview: {
+  server: {
+    host: true,
+    port: 5173,
+    /** Évite qu'un autre projet (ex. sftCaisse) occupe 5173 sans que vous le voyiez. */
+    strictPort: true,
     proxy: {
+      '/api': backendProxy(BACKEND_ORIGIN),
+      '/auth': backendProxy(BACKEND_ORIGIN, { spaGetBypass: true }),
+      '/v1': backendProxy(BACKEND_ORIGIN),
+      /** document-controller OpenAPI : `/private/document`, `/protected/document` */
+      '/private': backendProxy(BACKEND_ORIGIN),
+      '/protected': backendProxy(BACKEND_ORIGIN),
+    },
+  },
+  preview: {
+    host: true,
+    proxy: {
+      '/api': backendProxy(BACKEND_ORIGIN),
+      '/auth': backendProxy(BACKEND_ORIGIN, { spaGetBypass: true }),
+      '/v1': backendProxy(BACKEND_ORIGIN),
+      '/private': backendProxy(BACKEND_ORIGIN),
+      '/protected': backendProxy(BACKEND_ORIGIN),
       '/api/wifi': 'http://localhost:3001',
       '/api/health': 'http://localhost:3001',
     },

@@ -1,6 +1,6 @@
 # LawApp
 
-Plateforme d'évaluation éducative sécurisée — Vue 3, TypeScript, Tailwind CSS.
+Plateforme d'évaluation éducative sécurisée - Vue 3, TypeScript, Tailwind CSS.
 
 ## Fonctionnalités
 

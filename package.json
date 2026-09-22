@@ -8,16 +8,23 @@
     "server": "node server/index.mjs",
     "dev:full": "node server/index.mjs & vite",
     "build": "vue-tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "publish:libre-eval": "node scripts/publish-libre-evaluation.mjs"
   },
   "dependencies": {
     "@lucide/vue": "^1.17.0",
     "@vueuse/core": "^14.3.0",
+    "axios": "^1.18.1",
+    "country-state-city": "^3.2.1",
+    "fuse.js": "^7.5.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
+    "libphonenumber-js": "^1.13.12",
     "pinia": "^3.0.4",
     "vue": "^3.5.34",
     "vue-router": "^5.1.0",
+    "vue-sonner": "^2.0.9",
+    "vue-tel-input": "^9.8.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
