@@ -377,6 +377,30 @@ export const useCourseStore = defineStore('courses', () => {
     return course
   }
 
+  /** Upsert une salle API dans le store local (dashboard étudiant). */
+  function upsertApiCourse(course: Course & { apiId?: number; isFromApi?: boolean }): Course {
+    const idx = courses.value.findIndex(
+      (c) =>
+        c.id === course.id ||
+        ((c as Course & { apiId?: number }).apiId != null &&
+          (c as Course & { apiId?: number }).apiId === course.apiId),
+    )
+    if (idx >= 0) {
+      const prev = courses.value[idx]
+      courses.value[idx] = {
+        ...prev,
+        ...course,
+        studentUserIds: [...new Set([...prev.studentUserIds, ...course.studentUserIds])],
+        updatedAt: new Date().toISOString(),
+      }
+      persistCourses()
+      return courses.value[idx]
+    }
+    courses.value.unshift(course)
+    persistCourses()
+    return course
+  }
+
   function updateCourse(id: string, updates: Partial<Pick<Course, 'name' | 'subject'>>) {
     const idx = courses.value.findIndex((c) => c.id === id)
     if (idx === -1) return
@@ -509,6 +533,7 @@ export const useCourseStore = defineStore('courses', () => {
     joinTunnel,
     joinTunnelByShareCode,
     createCourse,
+    upsertApiCourse,
     updateCourse,
     deleteCourse,
     isEnrolled,
