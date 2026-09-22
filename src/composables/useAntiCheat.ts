@@ -18,6 +18,22 @@ export interface AntiCheatOptions {
 /** En `npm run dev` : inspecteur (F12 / Network) autorisé pour les tests. */
 const DEV_ALLOW_INSPECTOR = import.meta.env.DEV
 
+export function isFullscreenSupported(): boolean {
+  return typeof document.documentElement.requestFullscreen === 'function'
+}
+
+/** Plein écran navigateur (à appeler depuis un clic utilisateur si possible). */
+export async function requestExamFullscreen(): Promise<boolean> {
+  if (!isFullscreenSupported()) return false
+  if (document.fullscreenElement) return true
+  try {
+    await document.documentElement.requestFullscreen()
+    return !!document.fullscreenElement
+  } catch {
+    return false
+  }
+}
+
 export function useAntiCheat(
   config: AntiCheatConfig,
   callbacks: AntiCheatCallbacks,
@@ -27,7 +43,7 @@ export function useAntiCheat(
   const isFullscreen = ref(false)
   const isActive = ref(false)
   const warnings = ref<string[]>([])
-  const fullscreenSupported = typeof document.documentElement.requestFullscreen === 'function'
+  const fullscreenSupported = isFullscreenSupported()
 
   const isCritical = computed(() => violationCount.value >= config.maxViolations)
 
@@ -147,25 +163,39 @@ export function useAntiCheat(
   function handleFullscreenChange() {
     isFullscreen.value = !!document.fullscreenElement
     if (
-      isActive.value &&
-      config.requireFullscreen &&
-      fullscreenSupported &&
-      !document.fullscreenElement
+      !isActive.value ||
+      !config.requireFullscreen ||
+      !fullscreenSupported ||
+      document.fullscreenElement
     ) {
-      recordViolation('fullscreen_exit', 'Mode plein écran quitté.')
+      return
     }
+    if (screenLeaveAllowed()) {
+      return
+    }
+    void enterFullscreen().then((entered) => {
+      if (!entered && document.fullscreenElement == null) {
+        recordViolation('fullscreen_exit', 'Mode plein écran quitté.')
+      }
+    })
   }
 
-  async function enterFullscreen() {
+  async function enterFullscreen(): Promise<boolean> {
     if (!fullscreenSupported) {
-      callbacks.onWarning('Plein écran non disponible sur cet appareil. Restez dans cet onglet.')
-      return
+      if (config.requireFullscreen) {
+        callbacks.onWarning('Plein écran non disponible sur cet appareil.')
+      }
+      return false
     }
     try {
       await document.documentElement.requestFullscreen()
-      isFullscreen.value = true
+      isFullscreen.value = !!document.fullscreenElement
+      return !!document.fullscreenElement
     } catch {
-      callbacks.onWarning('Impossible d\'activer le plein écran. Restez dans cet onglet.')
+      if (config.requireFullscreen) {
+        callbacks.onWarning('Activez le plein écran pour continuer l’épreuve.')
+      }
+      return false
     }
   }
 
@@ -179,8 +209,8 @@ export function useAntiCheat(
     document.addEventListener('keydown', handleKeyDown)
     document.addEventListener('fullscreenchange', handleFullscreenChange)
 
-    if (config.requireFullscreen && fullscreenSupported && !screenLeaveAllowed()) {
-      enterFullscreen()
+    if (config.requireFullscreen && fullscreenSupported) {
+      void enterFullscreen()
     }
   }
 
