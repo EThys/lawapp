@@ -20,11 +20,13 @@ const props = withDefaults(
     selectedDate?: string | null
     showLegend?: boolean
     showMonthStats?: boolean
+    autoSelectLatest?: boolean
   }>(),
   {
     selectedDate: null,
     showLegend: true,
     showMonthStats: true,
+    autoSelectLatest: true,
   }
 )
 
@@ -63,7 +65,7 @@ const selectedMarks = computed(() => {
 watch(
   () => props.marks,
   (marks) => {
-    if (marks.length === 0 || selectedDateLocal.value) return
+    if (!props.autoSelectLatest || marks.length === 0 || selectedDateLocal.value) return
     const latest = [...marks].sort((a, b) => b.date.localeCompare(a.date))[0]
     if (latest) {
       const d = parseDateKey(latest.date)
@@ -163,7 +165,7 @@ const legendItems: { status: AttendanceDayStatus; label: string }[] = [
 </script>
 
 <template>
-  <div class="attendance-calendar">
+  <div class="attendance-calendar min-w-0 w-full">
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
       <div class="flex items-center gap-2">
         <div class="w-9 h-9 flex items-center justify-center bg-accent-light border border-accent/20">
@@ -177,7 +179,7 @@ const legendItems: { status: AttendanceDayStatus; label: string }[] = [
         </div>
       </div>
 
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
         <button
           type="button"
           class="min-h-11 min-w-11 flex items-center justify-center border border-line bg-white hover:bg-paper-warm text-ink-muted"
@@ -188,7 +190,7 @@ const legendItems: { status: AttendanceDayStatus; label: string }[] = [
         </button>
         <button
           type="button"
-          class="min-h-11 px-4 text-xs font-semibold uppercase tracking-wide border border-line bg-white hover:bg-paper-warm text-ink-muted"
+          class="min-h-11 flex-1 sm:flex-none px-3 sm:px-4 text-xs font-semibold uppercase tracking-wide border border-line bg-white hover:bg-paper-warm text-ink-muted"
           @click="goToToday"
         >
           Aujourd'hui

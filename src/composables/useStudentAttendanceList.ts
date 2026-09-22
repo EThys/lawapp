@@ -75,7 +75,7 @@ export function useStudentAttendanceList(options: {
   const tableRows = computed(() =>
     filteredRows.value.map((row) => ({
       ...row,
-      detail: row.type === 'present' && row.detail ? formatDate(row.detail) : '—',
+      detail: row.type === 'present' && row.detail ? formatDate(row.detail) : '-',
       typeLabel: row.type === 'present' ? 'Présent' : 'Absent',
     }))
   )

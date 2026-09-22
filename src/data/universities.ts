@@ -8,7 +8,46 @@ export interface InstitutionOption {
 /** Établissement partenaire, seul choix autorisé pour l'inscription */
 export const PARTNER_INSTITUTION = 'Université Catholique du Congo'
 
+export const PARTNER_INSTITUTION_LABEL = 'Université Catholique du Congo (UCC)'
+
 export const DEFAULT_UNIVERSITY = PARTNER_INSTITUTION
+
+/** True si le nom API correspond à l'UCC (seul établissement sélectionnable pour l'instant). */
+export function isPartnerEtablissementName(name: string): boolean {
+  const n = name
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+  return (
+    n.includes('catholique du congo') ||
+    /\(\s*ucc\s*\)/.test(n) ||
+    /\bucc\b/.test(n)
+  )
+}
+
+/** Options select : tous les établissements visibles, seule l'UCC sélectionnable. */
+export function etablissementSelectOptions<T extends { id: number; name?: string; active?: boolean }>(
+  list: T[],
+): { value: string; label: string; disabled?: boolean }[] {
+  return list
+    .filter((e) => e.active !== false)
+    .map((e) => {
+      const label = e.name?.trim() || PARTNER_INSTITUTION_LABEL
+      return {
+        value: String(e.id),
+        label,
+        disabled: !isPartnerEtablissementName(label),
+      }
+    })
+}
+
+/** Premier établissement partenaire (UCC) dans la liste API. */
+export function findPartnerEtablissement<T extends { id: number; name?: string; active?: boolean }>(
+  list: T[],
+): T | undefined {
+  return list.find((e) => e.active !== false && isPartnerEtablissementName(e.name ?? ''))
+}
 
 /** Principales universités, hautes écoles et instituts en RDC (partenariat UCC actif) */
 export const INSTITUTIONS_CONGO: InstitutionOption[] = [

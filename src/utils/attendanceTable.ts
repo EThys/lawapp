@@ -78,7 +78,7 @@ export function buildTeacherAttendanceRows(
         courseId: day.courseId,
         courseName: day.courseName,
         studentName: user ? `${user.lastName} ${user.firstName}` : 'Étudiant',
-        studentId: user?.studentId ?? '—',
+        studentId: user?.studentId ?? '-',
         type: 'present',
         markedAt: record.markedAt,
         markedAtLabel: formatMarkedAt(record.markedAt),

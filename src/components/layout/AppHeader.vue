@@ -38,7 +38,7 @@ const initials = computed(() => {
 
 
 
-const dashboardLink = computed(() => (auth.isTeacher ? '/teacher' : '/student'))
+const dashboardLink = computed(() => auth.homePath())
 
 
 
@@ -129,6 +129,32 @@ onUnmounted(() => {
           >
 
             Droit Ludique
+
+          </RouterLink>
+
+          <RouterLink
+
+            to="/documents"
+
+            class="text-sm text-ink-muted hover:text-ink transition-colors"
+
+          >
+
+            Bibliothèque
+
+          </RouterLink>
+
+          <RouterLink
+
+            v-if="auth.isCertified"
+
+            to="/admin"
+
+            class="text-sm text-ink-muted hover:text-ink transition-colors"
+
+          >
+
+            Admin
 
           </RouterLink>
 
@@ -260,6 +286,20 @@ onUnmounted(() => {
 
                 </RouterLink>
 
+                <RouterLink
+
+                  to="/account"
+
+                  class="block px-4 py-3 min-h-11 text-sm text-ink-muted hover:bg-paper-warm hover:text-ink"
+
+                  @click="userMenuOpen = false"
+
+                >
+
+                  Mon compte
+
+                </RouterLink>
+
                 <button
 
                   class="w-full flex items-center gap-2 px-4 py-3 min-h-11 text-sm text-danger hover:bg-danger-bg text-left"
@@ -383,6 +423,36 @@ onUnmounted(() => {
             >
 
               Droit Ludique
+
+            </RouterLink>
+
+            <RouterLink
+
+              to="/documents"
+
+              class="flex items-center min-h-11 px-3 text-sm text-ink rounded-sm hover:bg-paper-warm"
+
+              @click="closeMenus"
+
+            >
+
+              Bibliothèque
+
+            </RouterLink>
+
+            <RouterLink
+
+              v-if="auth.isCertified"
+
+              to="/admin"
+
+              class="flex items-center min-h-11 px-3 text-sm text-ink rounded-sm hover:bg-paper-warm"
+
+              @click="closeMenus"
+
+            >
+
+              Admin
 
             </RouterLink>
 
@@ -510,7 +580,13 @@ onUnmounted(() => {
 
               </div>
 
-
+              <RouterLink
+                to="/account"
+                class="flex items-center min-h-11 px-3 text-sm text-ink rounded-sm hover:bg-paper-warm"
+                @click="closeMenus"
+              >
+                Mon compte
+              </RouterLink>
 
               <button
 

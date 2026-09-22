@@ -1,4 +1,4 @@
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted, type MaybeRefOrGetter, toValue } from 'vue'
 import type { AntiCheatConfig, Violation, ViolationType } from '@/types'
 
 export interface AntiCheatCallbacks {
@@ -7,7 +7,22 @@ export interface AntiCheatCallbacks {
   onWarning: (message: string) => void
 }
 
-export function useAntiCheat(config: AntiCheatConfig, callbacks: AntiCheatCallbacks) {
+export interface AntiCheatOptions {
+  /**
+   * Si true : quitter l’onglet / perdre le focus / sortir du plein écran
+   * est autorisé (ex. dépôt de document). Aucun échec pour ces événements.
+   */
+  allowScreenLeave?: MaybeRefOrGetter<boolean>
+}
+
+/** En `npm run dev` : inspecteur (F12 / Network) autorisé pour les tests. */
+const DEV_ALLOW_INSPECTOR = import.meta.env.DEV
+
+export function useAntiCheat(
+  config: AntiCheatConfig,
+  callbacks: AntiCheatCallbacks,
+  options: AntiCheatOptions = {},
+) {
   const violationCount = ref(0)
   const isFullscreen = ref(false)
   const isActive = ref(false)
@@ -16,7 +31,21 @@ export function useAntiCheat(config: AntiCheatConfig, callbacks: AntiCheatCallba
 
   const isCritical = computed(() => violationCount.value >= config.maxViolations)
 
+  function screenLeaveAllowed(): boolean {
+    return !!toValue(options.allowScreenLeave) || DEV_ALLOW_INSPECTOR
+  }
+
   function recordViolation(type: ViolationType, message: string) {
+    const leaveTypes: ViolationType[] = ['tab_switch', 'window_blur', 'fullscreen_exit']
+    if (leaveTypes.includes(type) && screenLeaveAllowed()) {
+      return
+    }
+
+    // En dev : jamais d’échec / compteur pour « outils développeur ».
+    if (type === 'devtools' && DEV_ALLOW_INSPECTOR) {
+      return
+    }
+
     violationCount.value++
     const violation: Violation = {
       type,
@@ -50,14 +79,14 @@ export function useAntiCheat(config: AntiCheatConfig, callbacks: AntiCheatCallba
   }
 
   function handleVisibilityChange() {
-    if (!isActive.value) return
+    if (!isActive.value || !config.failOnTabSwitch) return
     if (document.hidden) {
       recordViolation('tab_switch', 'Vous avez quitté l\'onglet de l\'évaluation.')
     }
   }
 
   function handleBlur() {
-    if (!isActive.value) return
+    if (!isActive.value || !config.failOnWindowBlur) return
     if (document.hidden) return
     recordViolation('window_blur', 'La fenêtre a perdu le focus.')
   }
@@ -76,6 +105,8 @@ export function useAntiCheat(config: AntiCheatConfig, callbacks: AntiCheatCallba
 
   function handleContextMenu(e: MouseEvent) {
     if (!isActive.value || !config.blockContextMenu) return
+    // Clic droit utile dans l’inspecteur en mode test.
+    if (DEV_ALLOW_INSPECTOR) return
     e.preventDefault()
     recordViolation('context_menu', 'Menu contextuel bloqué.')
   }
@@ -83,16 +114,29 @@ export function useAntiCheat(config: AntiCheatConfig, callbacks: AntiCheatCallba
   function handleKeyDown(e: KeyboardEvent) {
     if (!isActive.value) return
 
+    const isDevtoolsShortcut =
+      e.key === 'F12' ||
+      ((e.ctrlKey || e.metaKey) && e.shiftKey && ['i', 'j', 'c'].includes(e.key.toLowerCase()))
+
+    // Tests locaux : F12 / Ctrl+Shift+I autorisés pour voir Network.
+    if (isDevtoolsShortcut && DEV_ALLOW_INSPECTOR) {
+      return
+    }
+
     const blocked = [
       (e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'a', 'p', 'u', 's'].includes(e.key.toLowerCase()),
-      e.key === 'F12',
-      (e.ctrlKey || e.metaKey) && e.shiftKey && ['i', 'j', 'c'].includes(e.key.toLowerCase()),
+      isDevtoolsShortcut,
       e.altKey && e.key === 'Tab',
     ]
 
+    // Alt+Tab autorisé si dépôt document (ou mode test).
+    if (e.altKey && e.key === 'Tab' && screenLeaveAllowed()) {
+      return
+    }
+
     if (blocked.some(Boolean)) {
       e.preventDefault()
-      if (e.key === 'F12' || ((e.ctrlKey || e.metaKey) && e.shiftKey)) {
+      if (isDevtoolsShortcut) {
         recordViolation('devtools', 'Raccourci développeur bloqué.')
       } else if (config.blockCopyPaste) {
         recordViolation('copy_attempt', 'Raccourci clavier bloqué.')
@@ -109,27 +153,6 @@ export function useAntiCheat(config: AntiCheatConfig, callbacks: AntiCheatCallba
       !document.fullscreenElement
     ) {
       recordViolation('fullscreen_exit', 'Mode plein écran quitté.')
-    }
-  }
-
-  let devToolsInterval: ReturnType<typeof setInterval> | null = null
-
-  function startDevToolsDetection() {
-    if (!config.detectDevTools) return
-    const threshold = 160
-    devToolsInterval = setInterval(() => {
-      const widthDiff = window.outerWidth - window.innerWidth > threshold
-      const heightDiff = window.outerHeight - window.innerHeight > threshold
-      if (widthDiff || heightDiff) {
-        recordViolation('devtools', 'Outils de développement détectés.')
-      }
-    }, 1000)
-  }
-
-  function stopDevToolsDetection() {
-    if (devToolsInterval) {
-      clearInterval(devToolsInterval)
-      devToolsInterval = null
     }
   }
 
@@ -155,9 +178,8 @@ export function useAntiCheat(config: AntiCheatConfig, callbacks: AntiCheatCallba
     document.addEventListener('contextmenu', handleContextMenu)
     document.addEventListener('keydown', handleKeyDown)
     document.addEventListener('fullscreenchange', handleFullscreenChange)
-    startDevToolsDetection()
 
-    if (config.requireFullscreen && fullscreenSupported) {
+    if (config.requireFullscreen && fullscreenSupported && !screenLeaveAllowed()) {
       enterFullscreen()
     }
   }
@@ -171,7 +193,6 @@ export function useAntiCheat(config: AntiCheatConfig, callbacks: AntiCheatCallba
     document.removeEventListener('contextmenu', handleContextMenu)
     document.removeEventListener('keydown', handleKeyDown)
     document.removeEventListener('fullscreenchange', handleFullscreenChange)
-    stopDevToolsDetection()
 
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {})

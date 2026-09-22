@@ -66,7 +66,7 @@ export function useTeacherAttendanceList(options: {
     filteredRows.value.map((row) => ({
       ...row,
       typeLabel: row.type === 'present' ? 'Présent' : 'Absent',
-      markedAtLabel: row.markedAtLabel ?? '—',
+      markedAtLabel: row.markedAtLabel ?? '-',
     }))
   )
 

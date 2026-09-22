@@ -53,7 +53,7 @@ export function useTeacherAttendanceCalendar(options: {
           return {
             userId: uid,
             name: user ? `${user.lastName} ${user.firstName}` : 'Étudiant',
-            studentId: user?.studentId ?? '—',
+            studentId: user?.studentId ?? '-',
           }
         })
 

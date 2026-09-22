@@ -1,5 +1,8 @@
 export interface Course {
   id: string
+  /** Identifiant numérique backend (classroom-controller). */
+  apiId?: number
+  isFromApi?: boolean
   teacherId: string
   teacherName: string
   name: string

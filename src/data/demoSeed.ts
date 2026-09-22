@@ -229,7 +229,7 @@ export async function seedDemoData(): Promise<void> {
     id: IDS.course,
     teacherId: teacher.id,
     teacherName,
-    name: 'L2 Droit civil — Groupe A',
+    name: 'L2 Droit civil - Groupe A',
     subject: 'Droit civil',
     enrollmentCode: 'CLASSE',
     enrollmentPublishedAt: isoDaysAgo(30),
@@ -279,8 +279,8 @@ export async function seedDemoData(): Promise<void> {
   const evalContrats: Evaluation = {
     id: IDS.evalContrats,
     code: 'DEMO01',
-    title: 'Interro — Droit des contrats',
-    description: 'Évaluation de démonstration — séance du 2 juin',
+    title: 'Interro - Droit des contrats',
+    description: 'Évaluation de démonstration - séance du 2 juin',
     type: 'interro',
     status: 'active',
     durationMinutes: 45,
@@ -303,12 +303,13 @@ export async function seedDemoData(): Promise<void> {
     presentOnly: false,
     sessionDate: null,
     sharedToClassAt: isoDaysAgo(10),
+    requiresAccessCode: false,
   }
 
   const evalRc: Evaluation = {
     id: IDS.evalRc,
     code: 'DEMO02',
-    title: 'TP — Responsabilité civile',
+    title: 'TP - Responsabilité civile',
     description: 'Travaux pratiques de démonstration',
     type: 'tp',
     status: 'closed',
@@ -332,13 +333,14 @@ export async function seedDemoData(): Promise<void> {
     presentOnly: false,
     sessionDate: null,
     sharedToClassAt: isoDaysAgo(32),
+    requiresAccessCode: false,
   }
 
   const evalPersonnes: Evaluation = {
     id: IDS.evalPersonnes,
     code: 'DEMO03',
-    title: 'Quiz — Personnes et biens',
-    description: 'Évaluation de démonstration — chapitre en cours',
+    title: 'Quiz - Personnes et biens',
+    description: 'Évaluation de démonstration - chapitre en cours',
     type: 'exercice',
     status: 'active',
     durationMinutes: 30,
@@ -370,6 +372,7 @@ export async function seedDemoData(): Promise<void> {
     presentOnly: false,
     sessionDate: null,
     sharedToClassAt: isoDaysAgo(0),
+    requiresAccessCode: false,
   }
 
   let evaluations = loadJson<Evaluation[]>('lawapp_evaluations', [])
@@ -552,7 +555,7 @@ export async function seedDemoData(): Promise<void> {
     {
       id: 'demo-notif-emy-presence',
       userId: IDS.studentEmy,
-      title: 'Présence · L2 Droit civil — Groupe A',
+      title: 'Présence · L2 Droit civil - Groupe A',
       body: 'WiFi « UCC-L2-DROIT ». Code : 847291. Pointez votre présence depuis l\'app.',
       link: '/join/presence/PRSUC1',
       type: 'presence',
@@ -562,7 +565,7 @@ export async function seedDemoData(): Promise<void> {
     {
       id: 'demo-notif-emy-eval',
       userId: IDS.studentEmy,
-      title: 'Évaluation · Quiz — Personnes et biens',
+      title: 'Évaluation · Quiz - Personnes et biens',
       body: 'Code DEMO03 partagé avec votre salle. Disponible dans votre espace étudiant.',
       link: '/student?code=DEMO03',
       type: 'evaluation',
@@ -582,7 +585,7 @@ export async function seedDemoData(): Promise<void> {
     {
       id: 'demo-notif-muzola-presence',
       userId: IDS.studentMuzola,
-      title: 'Présence · L2 Droit civil — Groupe A',
+      title: 'Présence · L2 Droit civil - Groupe A',
       body: 'WiFi « UCC-L2-DROIT ». Vous êtes marqué présent aujourd\'hui.',
       link: '/student',
       type: 'presence',
@@ -592,7 +595,7 @@ export async function seedDemoData(): Promise<void> {
     {
       id: 'demo-notif-muzola-eval',
       userId: IDS.studentMuzola,
-      title: 'Évaluation · Quiz — Personnes et biens',
+      title: 'Évaluation · Quiz - Personnes et biens',
       body: 'Nouvelle évaluation partagée. Code : DEMO03.',
       link: '/student?code=DEMO03',
       type: 'evaluation',
@@ -602,7 +605,7 @@ export async function seedDemoData(): Promise<void> {
     {
       id: 'demo-notif-muzola-correction',
       userId: IDS.studentMuzola,
-      title: 'Interro — Droit des contrats',
+      title: 'Interro - Droit des contrats',
       body: 'Votre copie a été enregistrée. Score : 14/15.',
       link: '/student/history?tab=passed',
       type: 'info',
@@ -612,7 +615,7 @@ export async function seedDemoData(): Promise<void> {
     {
       id: 'demo-notif-elie-presence',
       userId: IDS.studentElie,
-      title: 'Présence · L2 Droit civil — Groupe A',
+      title: 'Présence · L2 Droit civil - Groupe A',
       body: 'Session de présence ouverte. WiFi « UCC-L2-DROIT ».',
       link: '/join/presence/PRSUC1',
       type: 'presence',
@@ -632,8 +635,8 @@ export async function seedDemoData(): Promise<void> {
     {
       id: 'demo-notif-elie-eval',
       userId: IDS.studentElie,
-      title: 'Évaluation · Quiz — Personnes et biens',
-      body: 'Code DEMO03 — à compléter avant la fin de semaine.',
+      title: 'Évaluation · Quiz - Personnes et biens',
+      body: 'Code DEMO03 - à compléter avant la fin de semaine.',
       link: '/student?code=DEMO03',
       type: 'evaluation',
       read: false,

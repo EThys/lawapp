@@ -26,7 +26,7 @@ import AppDecorativeBg from '@/components/ui/AppDecorativeBg.vue'
         <div class="rule-line border-white/15 pt-6">
           <p class="text-sm text-white/50 leading-relaxed max-w-sm">
             Votre application pour créer et diffuser des évaluations auprès de vos étudiants,
-            élèves et formations — avec un module Droit Ludique pour découvrir le droit en format court.
+            élèves et formations - avec un module Droit Ludique pour découvrir le droit en format court.
           </p>
         </div>
       </div>

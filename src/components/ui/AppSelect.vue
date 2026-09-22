@@ -57,7 +57,7 @@ const groupedOptions = computed(() => {
             :value="opt.value"
             :disabled="opt.disabled"
           >
-            {{ opt.label }}{{ opt.disabled ? ' (bientôt)' : '' }}
+            {{ opt.label }}
           </option>
         </optgroup>
       </template>
@@ -69,7 +69,7 @@ const groupedOptions = computed(() => {
           :value="opt.value"
           :disabled="opt.disabled"
         >
-          {{ opt.label }}{{ opt.disabled ? ' (bientôt)' : '' }}
+          {{ opt.label }}
         </option>
       </template>
     </select>

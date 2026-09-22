@@ -3,6 +3,7 @@ export interface LegalComment {
   author: string
   text: string
   createdAt: string
+  apiId?: number
 }
 
 export interface LegalFeedItem {
@@ -15,6 +16,10 @@ export interface LegalFeedItem {
   audience: 'Étudiants' | 'Professionnels' | 'Tous publics'
   likes: number
   comments: LegalComment[]
+  /** ID contenu backend pour likes / commentaires */
+  apiContenuId?: number
+  kind?: 'local' | 'contenu' | 'status'
+  backgroundColor?: string
 }
 
 /** Capsules courtes et explicites pour le fil Droit Ludique */

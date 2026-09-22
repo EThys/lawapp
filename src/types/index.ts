@@ -24,6 +24,11 @@ export interface QuestionOption {
   isCorrect?: boolean
 }
 
+export interface QuestionSubItem {
+  title: string
+  fileContent?: string
+}
+
 export interface Question {
   id: string
   type: QuestionType
@@ -32,6 +37,12 @@ export interface Question {
   options?: QuestionOption[]
   correctAnswer?: string | boolean
   explanation?: string
+  /** Cas pratique — énoncé principal (Swagger passage). */
+  promptTitle?: string
+  /** Pièce jointe consigne (base64 ou URL). */
+  promptFileContent?: string
+  /** Sous-consignes ouvertes / cas (Swagger ouverte / caseStudy). */
+  subItems?: QuestionSubItem[]
 }
 
 export interface AntiCheatConfig {
@@ -63,6 +74,9 @@ export interface EvaluationSettings {
 
 export interface Evaluation {
   id: string
+  /** Identifiant numérique backend (évaluations API). */
+  apiId?: number
+  isFromApi?: boolean
   code: string
   title: string
   description: string
@@ -75,6 +89,8 @@ export interface Evaluation {
   createdAt: string
   updatedAt: string
   teacherId: string
+  /** Compte LawApp ayant créé l’épreuve (mode API). */
+  createdByUserId?: string
   teacherName: string
   subject: string
   /** Date/heure à partir de laquelle l'évaluation est accessible (ISO). Null = immédiat. */
@@ -95,6 +111,12 @@ export interface Evaluation {
   sessionDate: string | null
   /** Date de partage aux étudiants de la salle liée */
   sharedToClassAt: string | null
+  /** Si true, l'étudiant doit saisir le code avant de rejoindre. */
+  requiresAccessCode: boolean
+  /** Swagger EvaluationRequest — durée ou compteur métier backend. */
+  compteur?: number
+  /** Swagger — annexe générale (base64 / URL). */
+  fileContent?: string
 }
 
 export interface StudentAnswer {
@@ -102,6 +124,13 @@ export interface StudentAnswer {
   value: string | boolean | string[]
   /** Nom du fichier déposé (questions document) */
   fileName?: string
+}
+
+/** Note manuelle enseignant par question (ouverte / document). Stockage local — pas d’API backend. */
+export interface QuestionGrade {
+  questionId: string
+  pointsAwarded: number
+  comment?: string
 }
 
 export interface Violation {
@@ -127,6 +156,18 @@ export interface ExamSession {
   maxScore?: number
   violations: Violation[]
   timeSpentSeconds: number
+  /** Commentaire global enseignant (local). */
+  teacherComment?: string
+  /** Notes manuelles par question (local). */
+  questionGrades?: QuestionGrade[]
+  gradedAt?: string
+  /** Ids API soumission (GET private/.../submissions). */
+  apiSubmissionId?: number
+  apiEvaluationId?: number
+  scoreQcm?: number
+  studentEmail?: string
+  /** Détail réponses API (kind, optionCorrect, feedback…). */
+  apiAnswers?: import('@/api/types').EvaluationSubmissionAnswerDetail[]
 }
 
 export const EVALUATION_TYPE_LABELS: Record<EvaluationType, string> = {
@@ -162,7 +203,8 @@ export const DEFAULT_ANTI_CHEAT: AntiCheatConfig = {
   blockContextMenu: true,
   requireFullscreen: true,
   maxViolations: 2,
-  detectDevTools: true,
+  /** Heuristique taille fenêtre désactivée côté runtime (faux positifs). */
+  detectDevTools: false,
 }
 
 export const DEFAULT_SETTINGS: EvaluationSettings = {

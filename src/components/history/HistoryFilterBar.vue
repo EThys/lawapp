@@ -53,7 +53,7 @@ defineEmits<{
     <select
       v-if="showEvaluationFilter"
       :value="evaluationFilter"
-      class="px-4 py-2.5 min-h-11 border border-line bg-white text-ink focus:outline-none focus:border-accent lg:min-w-[14rem]"
+      class="px-4 py-2.5 min-h-11 border border-line bg-white text-ink focus:outline-none focus:border-accent lg:min-w-[14rem] cursor-pointer"
       @change="$emit('update:evaluationFilter', ($event.target as HTMLSelectElement).value)"
     >
       <option value="all">Toutes les évaluations</option>
@@ -65,7 +65,7 @@ defineEmits<{
     <select
       v-if="showCourseFilter"
       :value="courseFilter"
-      class="px-4 py-2.5 min-h-11 border border-line bg-white text-ink focus:outline-none focus:border-accent lg:min-w-[12rem]"
+      class="px-4 py-2.5 min-h-11 border border-line bg-white text-ink focus:outline-none focus:border-accent lg:min-w-[12rem] cursor-pointer"
       @change="$emit('update:courseFilter', ($event.target as HTMLSelectElement).value)"
     >
       <option value="all">Toutes les salles</option>
@@ -77,7 +77,7 @@ defineEmits<{
     <select
       v-if="showTypeFilter"
       :value="typeFilter"
-      class="px-4 py-2.5 min-h-11 border border-line bg-white text-ink focus:outline-none focus:border-accent lg:min-w-[11rem]"
+      class="px-4 py-2.5 min-h-11 border border-line bg-white text-ink focus:outline-none focus:border-accent lg:min-w-[11rem] cursor-pointer"
       @change="$emit('update:typeFilter', ($event.target as HTMLSelectElement).value)"
     >
       <option value="all">Tous les statuts</option>

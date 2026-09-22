@@ -128,7 +128,7 @@ function exportRows(): string[][] {
         r.type === 'absent' ? 'Absent' : 'Présent',
         String(r.courseName ?? ''),
         String(r.date ?? ''),
-        String(r.detail ?? '—'),
+        String(r.detail ?? '-'),
       ]),
     ]
   }
@@ -140,7 +140,7 @@ function exportRows(): string[][] {
       String(r.studentName ?? ''),
       String(r.studentId ?? ''),
       r.type === 'absent' ? 'Absent' : 'Présent',
-      String(r.markedAtLabel ?? '—'),
+      String(r.markedAtLabel ?? '-'),
     ]),
   ]
 }

@@ -15,9 +15,9 @@ export function getCorrectAnswerText(question: Question): string | null {
 }
 
 export function getStudentAnswerText(question: Question, answer?: StudentAnswer): string {
-  if (!answer) return '—'
+  if (!answer) return '-'
   if (question.type === 'qcm' && typeof answer.value === 'string') {
-    return question.options?.find((o) => o.id === answer.value)?.text ?? '—'
+    return question.options?.find((o) => o.id === answer.value)?.text ?? '-'
   }
   if (question.type === 'truefalse' && typeof answer.value === 'boolean') {
     return answer.value ? 'Vrai' : 'Faux'
@@ -25,8 +25,8 @@ export function getStudentAnswerText(question: Question, answer?: StudentAnswer)
   if (question.type === 'document') {
     return answer.fileName ?? 'Document déposé'
   }
-  if (typeof answer.value === 'string') return answer.value || '—'
-  return '—'
+  if (typeof answer.value === 'string') return answer.value || '-'
+  return '-'
 }
 
 export function isAnswerCorrect(question: Question, answer?: StudentAnswer): boolean | null {
