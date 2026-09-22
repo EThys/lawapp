@@ -2,12 +2,15 @@
 import { ref, computed, onMounted, onUnmounted, shallowRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEvaluationStore } from '@/stores/evaluations'
+import { isApiEnabled } from '@/config/features'
+import { parseApiEvaluationId } from '@/utils/evaluationApiMapper'
 import { useAntiCheat } from '@/composables/useAntiCheat'
 import { useTimer } from '@/composables/useTimer'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import type { Question, StudentAnswer, Violation } from '@/types'
 import { shuffleArray, calculateScore, readFileAsDataUrl } from '@/utils/helpers'
+import { appToast } from '@/utils/toast'
 import { isAnswerCorrect, getCorrectAnswerText, getStudentAnswerText } from '@/utils/evaluationReview'
 import {
   Clock,
@@ -30,9 +33,35 @@ const store = useEvaluationStore()
 
 const sessionId = route.params.sessionId as string
 const session = computed(() => store.getSession(sessionId))
-const evaluation = computed(() =>
-  session.value ? store.getById(session.value.evaluationId) : undefined
-)
+const evaluation = computed(() => {
+  if (!session.value) return undefined
+  const s = session.value
+  return (
+    store.getById(s.evaluationId) ??
+    store.getByCode(s.evaluationCode) ??
+    store.evaluations.find(
+      (e) =>
+        e.id === s.evaluationId ||
+        e.code === s.evaluationCode ||
+        (s.apiEvaluationId != null && e.apiId === s.apiEvaluationId) ||
+        (e.apiId != null && String(e.apiId) === s.evaluationId),
+    )
+  )
+})
+
+function resolveExamApiId(): number | null {
+  const ev = evaluation.value
+  const s = session.value
+  if (!ev && !s) return null
+  return (
+    ev?.apiId ??
+    s?.apiEvaluationId ??
+    (ev ? parseApiEvaluationId(ev.id) : null) ??
+    (ev ? parseApiEvaluationId(ev.code) : null) ??
+    parseApiEvaluationId(s?.evaluationId ?? '') ??
+    parseApiEvaluationId(s?.evaluationCode ?? '')
+  )
+}
 
 const currentIndex = ref(0)
 const answers = ref<StudentAnswer[]>([])
@@ -41,10 +70,14 @@ const showWarning = ref(false)
 const warningMessage = ref('')
 const isSubmitting = ref(false)
 const examEnded = ref(false)
+const submitError = ref('')
 const startTime = ref(Date.now())
 const orderedQuestions = shallowRef<Question[]>([])
 const showSubmitModal = ref(false)
 const showReviewPanel = ref(false)
+const timeUpOverlay = ref(false)
+
+const inputsLocked = computed(() => examEnded.value || isSubmitting.value || timeUpOverlay.value)
 
 const totalQuestions = computed(() => orderedQuestions.value.length)
 const currentQuestion = computed(() => orderedQuestions.value[currentIndex.value])
@@ -55,6 +88,13 @@ const instantFeedbackEnabled = computed(
   () =>
     evaluation.value?.settings.correctionMode === 'auto' &&
     (evaluation.value?.settings.instantFeedback ?? true)
+)
+
+/** Quitter l’écran autorisé uniquement si l’épreuve contient un dépôt de document. */
+const allowScreenLeaveForDocument = computed(
+  () =>
+    !!evaluation.value?.questions.some((q) => q.type === 'document') ||
+    !!evaluation.value?.settings.allowDocumentUpload,
 )
 
 const allowReview = computed(() => evaluation.value?.settings.allowReview ?? false)
@@ -123,18 +163,24 @@ function getDotStatus(q: Question, index: number) {
 
 function getQcmOptionClass(optionId: string) {
   const q = currentQuestion.value
-  if (!q || q.type !== 'qcm') return ''
-  const selected = getAnswer(q.id)?.value === optionId
+  if (!q || q.type !== 'qcm') return 'border-line bg-white hover:border-line-strong'
+  const answer = getAnswer(q.id)
+  const selected = answer?.value === optionId
   if (!selected) return 'border-line bg-white hover:border-line-strong'
 
   if (!instantFeedbackEnabled.value) {
-    return 'border-accent bg-accent-light ring-1 ring-accent/30'
+    return 'border-accent bg-accent-light ring-1 ring-accent/30 text-ink'
   }
 
-  const correct = isAnswerCorrect(q, getAnswer(q.id))
-  return correct
-    ? 'border-success bg-success-bg ring-1 ring-success/30'
-    : 'border-danger bg-danger-bg ring-1 ring-danger/30'
+  const correctOption = q.options?.find((o) => o.isCorrect)
+  if (!correctOption) {
+    return 'border-accent bg-accent-light ring-1 ring-accent/30 text-ink'
+  }
+
+  const isThisCorrect = optionId === correctOption.id
+  return isThisCorrect
+    ? 'border-success bg-success-bg ring-1 ring-success/30 text-success font-medium'
+    : 'border-danger bg-danger-bg ring-1 ring-danger/30 text-danger font-medium'
 }
 
 function getTrueFalseClass(value: boolean) {
@@ -183,31 +229,98 @@ function failExam(reason: string) {
   router.replace(`/exam/${sessionId}/result?reason=${encodeURIComponent(reason)}`)
 }
 
-function submitExam(status: 'submitted' | 'expired' = 'submitted') {
+function handleTimerExpired() {
   if (examEnded.value || isSubmitting.value) return
-  isSubmitting.value = true
+  timeUpOverlay.value = true
   examEnded.value = true
-  showSubmitModal.value = false
-  showReviewPanel.value = false
   antiCheatRef.value?.stop()
   timerRef.value?.stop()
-
-  const { score, maxScore } = calculateScore(
-    evaluation.value!.questions,
-    answers.value
-  )
-
-  store.updateSession(sessionId, {
-    status,
-    submittedAt: new Date().toISOString(),
-    score,
-    maxScore,
-    violations: [...violations.value],
-    timeSpentSeconds: Math.floor((Date.now() - startTime.value) / 1000),
-    answers: [...answers.value],
+  appToast.success('Temps écoulé', {
+    description:
+      'Merci pour votre participation. Vos réponses sont enregistrées et l’épreuve va se fermer automatiquement.',
+    duration: 10000,
   })
+  submitExam('expired')
+}
 
-  router.replace(`/exam/${sessionId}/result`)
+function submitExam(status: 'submitted' | 'expired' = 'submitted') {
+  if (isSubmitting.value) return
+  if (examEnded.value && status !== 'expired') return
+  isSubmitting.value = true
+  showSubmitModal.value = false
+  showReviewPanel.value = false
+
+  const eval_ = evaluation.value
+  if (!eval_) {
+    isSubmitting.value = false
+    submitError.value = 'Évaluation introuvable. Rejoignez l’épreuve depuis votre espace.'
+    return
+  }
+
+  const { score, maxScore } = calculateScore(eval_.questions, answers.value)
+
+  void (async () => {
+    // Mode API : toujours POST …/reponses (même après expiration du chrono).
+    if (isApiEnabled()) {
+      const apiId = resolveExamApiId()
+      if (apiId == null) {
+        isSubmitting.value = false
+        examEnded.value = false
+        submitError.value =
+          'Soumission serveur impossible : identifiant d’évaluation manquant. Revenez au dashboard et relancez l’épreuve.'
+        if (import.meta.env.DEV) {
+          console.warn('[LawApp] submit skipped — no apiId', {
+            evaluationId: eval_.id,
+            code: eval_.code,
+            apiId: eval_.apiId,
+            sessionEvalId: session.value?.evaluationId,
+          })
+        }
+        return
+      }
+
+      // Assure apiId sur l’objet passé au store.
+      const forApi = eval_.apiId === apiId ? eval_ : { ...eval_, apiId, isFromApi: true as const }
+      const spent = Math.floor((Date.now() - startTime.value) / 1000)
+      const result = await store.submitAnswersToApi(forApi, answers.value, {
+        timeSpentSeconds: spent,
+        startedAt: session.value?.startedAt,
+      })
+      if (!result.ok) {
+        isSubmitting.value = false
+        examEnded.value = false
+        submitError.value =
+          result.error ||
+          'Impossible d\'envoyer vos réponses au serveur. Vérifiez votre connexion et réessayez.'
+        return
+      }
+      await store.loadMySubmission(result.apiId, sessionId, { force: true })
+    } else if (import.meta.env.DEV) {
+      console.warn('[LawApp] submit local only — VITE_USE_API=false')
+    }
+
+    examEnded.value = true
+    submitError.value = ''
+    antiCheatRef.value?.stop()
+    timerRef.value?.stop()
+
+    const afterApi = isApiEnabled() ? store.getSession(sessionId) : undefined
+    store.updateSession(sessionId, {
+      status: status === 'expired' ? 'expired' : 'submitted',
+      submittedAt: new Date().toISOString(),
+      score: afterApi?.score ?? score,
+      maxScore: afterApi?.maxScore ?? maxScore,
+      scoreQcm: afterApi?.scoreQcm ?? undefined,
+      apiAnswers: afterApi?.apiAnswers,
+      apiSubmissionId: afterApi?.apiSubmissionId,
+      violations: [...violations.value],
+      timeSpentSeconds: Math.floor((Date.now() - startTime.value) / 1000),
+      answers: [...answers.value],
+      apiEvaluationId: resolveExamApiId() ?? undefined,
+    })
+
+    await router.replace(`/exam/${sessionId}/result`)
+  })()
 }
 
 function initExamRuntime() {
@@ -231,23 +344,27 @@ function initExamRuntime() {
   timerRef.value = useTimer(
     session.value.expiresAt,
     session.value.startedAt,
-    () => submitExam('expired')
+    () => handleTimerExpired(),
   )
 
-  antiCheatRef.value = useAntiCheat(evaluation.value.antiCheat, {
-    onViolation(v) {
-      violations.value.push(v)
-      store.updateSession(sessionId, { violations: [...violations.value] })
+  antiCheatRef.value = useAntiCheat(
+    evaluation.value.antiCheat,
+    {
+      onViolation(v) {
+        violations.value.push(v)
+        store.updateSession(sessionId, { violations: [...violations.value] })
+      },
+      onFail(reason) {
+        failExam(reason)
+      },
+      onWarning(msg) {
+        warningMessage.value = msg
+        showWarning.value = true
+        setTimeout(() => (showWarning.value = false), 4000)
+      },
     },
-    onFail(reason) {
-      failExam(reason)
-    },
-    onWarning(msg) {
-      warningMessage.value = msg
-      showWarning.value = true
-      setTimeout(() => (showWarning.value = false), 4000)
-    },
-  })
+    { allowScreenLeave: allowScreenLeaveForDocument },
+  )
 
   timerRef.value.start()
   antiCheatRef.value.start()
@@ -280,23 +397,35 @@ function enterFullscreen() {
 }
 
 onMounted(() => {
-  if (!session.value || !evaluation.value) {
-    router.replace('/student')
-    return
-  }
+  void (async () => {
+    if (!session.value || !evaluation.value) {
+      router.replace('/student')
+      return
+    }
 
-  if (session.value.status === 'pending') {
-    router.replace(`/exam/${sessionId}/intro`)
-    return
-  }
+    if (session.value.status === 'pending') {
+      router.replace(`/exam/${sessionId}/intro`)
+      return
+    }
 
-  if (session.value.status !== 'in_progress') {
-    router.replace(`/exam/${sessionId}/result`)
-    return
-  }
+    if (session.value.status !== 'in_progress') {
+      router.replace(`/exam/${sessionId}/result`)
+      return
+    }
 
-  initExamRuntime()
-  window.addEventListener('beforeunload', handleBeforeUnload)
+    // Passage API : questions + anticheat / criteres actifs pour cette épreuve.
+    if (isApiEnabled() && evaluation.value.apiId != null) {
+      const passage = await store.loadPassageFromApi(evaluation.value.apiId)
+      if (!passage?.questions.length) {
+        submitError.value =
+          store.apiError || 'Impossible de charger la feuille d\'évaluation (passage).'
+        return
+      }
+    }
+
+    initExamRuntime()
+    window.addEventListener('beforeunload', handleBeforeUnload)
+  })()
 })
 
 onUnmounted(() => {
@@ -364,6 +493,19 @@ onUnmounted(() => {
         <p class="text-sm font-medium">{{ warningMessage }}</p>
       </div>
     </Transition>
+
+    <div
+      v-if="submitError"
+      class="flex-shrink-0 mx-4 mt-3 flex items-start gap-2.5 p-3 bg-danger-bg border border-danger/20 text-sm text-danger"
+    >
+      <AlertTriangle class="w-4 h-4 flex-shrink-0 mt-0.5" />
+      <div class="min-w-0">
+        <p>{{ submitError }}</p>
+        <button type="button" class="mt-1 text-xs underline cursor-pointer" @click="submitError = ''">
+          Fermer
+        </button>
+      </div>
+    </div>
 
     <!-- Panneau révision -->
     <Transition name="fade">
@@ -464,7 +606,31 @@ onUnmounted(() => {
       </div>
     </Transition>
 
-    <main class="flex-1 min-h-0 overflow-y-auto overscroll-contain max-w-3xl mx-auto w-full px-4 py-5 sm:py-8">
+    <Transition name="fade">
+      <div
+        v-if="timeUpOverlay || (isSubmitting && examEnded)"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-white/90 backdrop-blur-sm px-6"
+        role="alertdialog"
+        aria-live="assertive"
+        aria-label="Temps écoulé"
+      >
+        <div class="max-w-md w-full text-center space-y-4 p-8 border border-line shadow-xl bg-white">
+          <Clock class="w-14 h-14 mx-auto text-accent" />
+          <h2 class="font-display text-2xl sm:text-3xl text-ink">Temps écoulé</h2>
+          <p class="text-sm sm:text-base text-ink-muted leading-relaxed">
+            Merci pour votre participation. Vos réponses sont en cours d’enregistrement — merci de ne pas
+            fermer cette page.
+          </p>
+          <p v-if="isSubmitting" class="text-xs text-ink-faint animate-pulse">Envoi en cours…</p>
+        </div>
+      </div>
+    </Transition>
+
+    <main
+      class="flex-1 min-h-0 overflow-y-auto overscroll-contain max-w-3xl mx-auto w-full px-4 py-5 sm:py-8 transition-opacity"
+      :class="{ 'pointer-events-none select-none opacity-50': inputsLocked }"
+      :aria-disabled="inputsLocked"
+    >
       <Transition name="step" mode="out-in">
         <div v-if="currentQuestion" :key="currentQuestion.id" class="space-y-5">
           <div class="flex items-center justify-between gap-3">
@@ -526,7 +692,15 @@ onUnmounted(() => {
                 class="w-4 h-4 text-accent flex-shrink-0"
                 @change="setAnswer(currentQuestion.id, option.id)"
               />
-              <span class="text-ink text-base sm:text-sm">{{ option.text }}</span>
+              <span class="text-base sm:text-sm flex-1">{{ option.text }}</span>
+              <CheckCircle
+                v-if="getAnswer(currentQuestion.id)?.value === option.id && instantFeedbackEnabled && isAnswerCorrect(currentQuestion, getAnswer(currentQuestion.id)) === true"
+                class="w-5 h-5 text-success flex-shrink-0"
+              />
+              <XCircle
+                v-else-if="getAnswer(currentQuestion.id)?.value === option.id && instantFeedbackEnabled && isAnswerCorrect(currentQuestion, getAnswer(currentQuestion.id)) === false"
+                class="w-5 h-5 text-danger flex-shrink-0"
+              />
             </label>
           </div>
 
@@ -568,6 +742,9 @@ onUnmounted(() => {
 
           <div v-if="currentQuestion.type === 'document'" class="space-y-3 p-5 border border-line bg-paper-warm">
             <p class="text-sm text-ink-muted">Formats acceptés : PDF, Word, images (max. 3 Mo)</p>
+            <p class="text-xs text-accent">
+              Vous pouvez quitter l’écran le temps de sélectionner ou récupérer votre document — ce n’est pas une fraude.
+            </p>
             <input
               type="file"
               accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"

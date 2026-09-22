@@ -1,40 +1,46 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { RouterLink } from 'vue-router'
+import { useLegalFeedStore } from '@/stores/legalFeed'
+import { useAuthStore } from '@/stores/auth'
+import { useServerShimmer } from '@/composables/useServerShimmer'
+import AppShimmerFeed from '@/components/loading/AppShimmerFeed.vue'
 import {
-  LEGAL_FEED,
   DISCOVER_COMMENTS_KEY,
   formatCommentDate,
   getInitials,
   type LegalComment,
+  type LegalFeedItem,
 } from '@/data/legalFeed'
 import { generateId } from '@/utils/helpers'
 
-const activeId = ref(LEGAL_FEED[0].id)
+const feedStore = useLegalFeedStore()
+const auth = useAuthStore()
+const { showShimmer: feedShimmer } = useServerShimmer(computed(() => feedStore.loading))
+
+const feedItems = computed(() => feedStore.feedItems)
+
+const activeId = ref('')
 const commentsOpen = ref(false)
-const liked = ref<Set<string>>(new Set())
-const likeCounts = ref<Record<string, number>>({})
+const localLiked = ref<Set<string>>(new Set())
 const revealedQuiz = ref<Set<string>>(new Set())
 const userComments = ref<Record<string, LegalComment[]>>({})
 const newComment = ref('')
 const commentAuthor = ref('Visiteur')
 const feedRef = ref<HTMLElement | null>(null)
 
-const activeItem = computed(() => LEGAL_FEED.find((i) => i.id === activeId.value) ?? LEGAL_FEED[0])
+const activeItem = computed(
+  () => feedItems.value.find((i) => i.id === activeId.value) ?? feedItems.value[0],
+)
 
 const allComments = computed(() => {
+  if (!activeItem.value) return []
   const seeded = activeItem.value.comments
   const extra = userComments.value[activeItem.value.id] ?? []
   return [...seeded, ...extra].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   )
 })
-
-function initLikeCounts() {
-  const map: Record<string, number> = {}
-  for (const item of LEGAL_FEED) map[item.id] = item.likes
-  likeCounts.value = map
-}
 
 function loadUserComments() {
   try {
@@ -49,11 +55,25 @@ function persistUserComments() {
   localStorage.setItem(DISCOVER_COMMENTS_KEY, JSON.stringify(userComments.value))
 }
 
-function toggleLike(id: string) {
-  const next = new Set(liked.value)
-  if (next.has(id)) next.delete(id)
-  else next.add(id)
-  liked.value = next
+function isLiked(item: LegalFeedItem): boolean {
+  if (item.apiContenuId) return feedStore.isLiked(item)
+  return localLiked.value.has(item.id)
+}
+
+function likeCount(item: LegalFeedItem): number {
+  if (item.apiContenuId) return feedStore.displayLikeCount(item)
+  return item.likes + (localLiked.value.has(item.id) ? 1 : 0)
+}
+
+async function toggleLike(item: LegalFeedItem) {
+  if (item.apiContenuId && auth.isAuthenticated) {
+    await feedStore.toggleLike(item)
+    return
+  }
+  const next = new Set(localLiked.value)
+  if (next.has(item.id)) next.delete(item.id)
+  else next.add(item.id)
+  localLiked.value = next
 }
 
 function toggleQuiz(id: string) {
@@ -73,34 +93,35 @@ function closeComments() {
   newComment.value = ''
 }
 
-function submitComment() {
+async function submitComment() {
   const text = newComment.value.trim()
-  if (!text) return
+  if (!text || !activeItem.value) return
 
-  const comment: LegalComment = {
-    id: generateId(),
-    author: commentAuthor.value.trim() || 'Visiteur',
-    text,
-    createdAt: new Date().toISOString(),
+  const author = commentAuthor.value.trim() || 'Visiteur'
+  const added = await feedStore.addComment(activeItem.value, text, author)
+
+  if (!added && !activeItem.value.apiContenuId) {
+    const comment: LegalComment = {
+      id: generateId(),
+      author,
+      text,
+      createdAt: new Date().toISOString(),
+    }
+    const id = activeItem.value.id
+    if (!userComments.value[id]) userComments.value[id] = []
+    userComments.value[id].push(comment)
+    userComments.value = { ...userComments.value }
+    persistUserComments()
   }
 
-  const id = activeItem.value.id
-  if (!userComments.value[id]) userComments.value[id] = []
-  userComments.value[id].push(comment)
-  userComments.value = { ...userComments.value }
-  persistUserComments()
   newComment.value = ''
 }
 
 let observer: IntersectionObserver | null = null
 
-onMounted(async () => {
-  initLikeCounts()
-  loadUserComments()
-
-  await nextTick()
+function setupObserver() {
+  observer?.disconnect()
   if (!feedRef.value) return
-
   observer = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
@@ -110,11 +131,31 @@ onMounted(async () => {
         }
       }
     },
-    { threshold: [0.55, 0.7] }
+    { threshold: [0.55, 0.7] },
   )
-
   feedRef.value.querySelectorAll('[data-id]').forEach((el) => observer!.observe(el))
+}
+
+onMounted(async () => {
+  loadUserComments()
+  await feedStore.sync()
+  if (feedItems.value[0]) activeId.value = feedItems.value[0].id
+  await nextTick()
+  setupObserver()
 })
+
+watch(feedItems, async () => {
+  if (!activeId.value && feedItems.value[0]) activeId.value = feedItems.value[0].id
+  await nextTick()
+  setupObserver()
+})
+
+watch(
+  () => auth.isAuthenticated,
+  () => {
+    void feedStore.sync()
+  },
+)
 
 onUnmounted(() => observer?.disconnect())
 </script>
@@ -125,20 +166,35 @@ onUnmounted(() => observer?.disconnect())
       <RouterLink to="/" class="discover-back">Accueil</RouterLink>
       <div class="discover-brand">
         <span class="discover-brand-title">Droit Ludique</span>
-        <span class="discover-brand-sub">Fil juridique</span>
+        <span class="discover-brand-sub">
+          {{ feedStore.source === 'api' ? 'Fil en direct' : 'Fil juridique' }}
+        </span>
       </div>
-      <button type="button" class="discover-comments-toggle" @click="openComments()">
-        Commentaires
-      </button>
+      <div class="flex items-center gap-2">
+        <RouterLink to="/quiz" class="discover-comments-toggle">Quiz</RouterLink>
+        <button type="button" class="discover-comments-toggle" @click="openComments()">
+          Commentaires
+        </button>
+      </div>
     </header>
 
-    <div class="discover-body" :class="{ 'discover-body--panel-open': commentsOpen }">
+    <p
+      v-if="!feedShimmer && !auth.isAuthenticated"
+      class="text-center text-xs text-ink-muted py-2 px-4"
+    >
+      Connectez-vous pour le fil en direct · démo locale affichée
+    </p>
+
+    <AppShimmerFeed v-if="feedShimmer" :slides="3" />
+
+    <div v-else class="discover-body" :class="{ 'discover-body--panel-open': commentsOpen }">
       <div ref="feedRef" class="discover-feed">
         <article
-          v-for="(item, index) in LEGAL_FEED"
+          v-for="(item, index) in feedItems"
           :key="item.id"
           :data-id="item.id"
           class="discover-slide"
+          :style="item.backgroundColor ? { background: item.backgroundColor } : undefined"
         >
           <div class="discover-slide-inner">
             <div class="discover-meta">
@@ -164,10 +220,10 @@ onUnmounted(() => observer?.disconnect())
               <button
                 type="button"
                 class="discover-stat"
-                :class="liked.has(item.id) ? 'discover-stat--active' : ''"
-                @click="toggleLike(item.id)"
+                :class="isLiked(item) ? 'discover-stat--active' : ''"
+                @click="toggleLike(item)"
               >
-                J'aime · {{ (likeCounts[item.id] ?? item.likes) + (liked.has(item.id) ? 1 : 0) }}
+                J'aime · {{ likeCount(item) }}
               </button>
               <button type="button" class="discover-stat" @click="openComments(item.id)">
                 Commentaires · {{ item.comments.length + (userComments[item.id]?.length ?? 0) }}
@@ -175,7 +231,7 @@ onUnmounted(() => observer?.disconnect())
             </div>
           </div>
 
-          <p v-if="index < LEGAL_FEED.length - 1" class="discover-scroll-tip">Glisser vers le haut</p>
+          <p v-if="index < feedItems.length - 1" class="discover-scroll-tip">Glisser vers le haut</p>
         </article>
       </div>
 
@@ -183,7 +239,7 @@ onUnmounted(() => observer?.disconnect())
         <div class="discover-panel-head">
           <div>
             <p class="discover-panel-label">Commentaires</p>
-            <p class="discover-panel-topic">{{ activeItem.title }}</p>
+            <p class="discover-panel-topic">{{ activeItem?.title }}</p>
           </div>
           <button type="button" class="discover-panel-close" @click="closeComments">Fermer</button>
         </div>
@@ -208,225 +264,211 @@ onUnmounted(() => observer?.disconnect())
           <input
             v-model="commentAuthor"
             type="text"
-            class="discover-input discover-input--sm"
-            placeholder="Votre prénom"
-            maxlength="32"
+            placeholder="Votre nom"
+            class="discover-panel-input discover-panel-input--sm"
           />
           <textarea
             v-model="newComment"
-            class="discover-input discover-input--area"
             rows="2"
-            placeholder="Écrire un commentaire…"
-            maxlength="400"
+            placeholder="Ajouter un commentaire…"
+            class="discover-panel-input"
           />
-          <button type="submit" class="discover-submit" :disabled="!newComment.trim()">
+          <button type="submit" class="discover-panel-submit" :disabled="!newComment.trim()">
             Publier
           </button>
         </form>
       </aside>
     </div>
-
-    <div
-      v-if="commentsOpen"
-      class="discover-overlay lg:hidden"
-      @click="closeComments"
-    />
   </div>
 </template>
 
 <style scoped>
 .discover-app {
-  height: 100dvh;
-  background: var(--color-brand-dark);
-  color: white;
-  overflow: hidden;
+  min-height: 100dvh;
+  background: linear-gradient(180deg, #0a2f6b 0%, #0d47a1 40%, #0f172a 100%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
 }
 
 .discover-top {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 40;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--color-brand-dark) 95%, transparent), color-mix(in srgb, var(--color-brand-dark) 60%, transparent));
-  border-bottom: 1px solid rgb(255 255 255 / 0.06);
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid rgb(255 255 255 / 0.12);
+  background: rgb(10 47 107 / 0.85);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
-.discover-back {
+.discover-back,
+.discover-comments-toggle {
   font-size: 0.8125rem;
-  color: rgb(255 255 255 / 0.65);
-  transition: color 0.2s;
+  color: rgb(255 255 255 / 0.85);
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
 }
 
-.discover-back:hover {
-  color: white;
+.discover-back:hover,
+.discover-comments-toggle:hover {
+  color: #fff;
 }
 
 .discover-brand {
   text-align: center;
+  flex: 1;
+  min-width: 0;
 }
 
 .discover-brand-title {
   display: block;
-  font-size: 0.875rem;
+  font-family: var(--font-display);
+  font-size: 1rem;
   font-weight: 600;
-  letter-spacing: -0.01em;
 }
 
 .discover-brand-sub {
   display: block;
-  font-size: 9px;
+  font-size: 0.6875rem;
+  color: rgb(255 255 255 / 0.65);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: rgb(255 255 255 / 0.4);
-  margin-top: 0.1rem;
-}
-
-.discover-comments-toggle {
-  justify-self: end;
-  font-size: 0.75rem;
-  color: var(--color-accent-muted);
-  padding: 0.35rem 0.5rem;
+  letter-spacing: 0.08em;
 }
 
 .discover-body {
-  display: flex;
-  height: 100dvh;
-  padding-top: 3.25rem;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 0;
+}
+
+.discover-body--panel-open {
+  grid-template-columns: 1fr min(360px, 42vw);
 }
 
 .discover-feed {
-  flex: 1;
-  height: 100%;
+  height: calc(100dvh - 3.5rem);
   overflow-y: auto;
   scroll-snap-type: y mandatory;
-  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+
+.discover-feed::-webkit-scrollbar {
+  display: none;
 }
 
 .discover-slide {
-  position: relative;
-  min-height: 100%;
+  min-height: calc(100dvh - 3.5rem);
   scroll-snap-align: start;
   scroll-snap-stop: always;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 1.25rem 1rem 2rem;
-  border-bottom: 1px solid rgb(255 255 255 / 0.06);
+  padding: 1.5rem 1.25rem 2rem;
+  position: relative;
 }
 
 .discover-slide-inner {
-  max-width: 32rem;
+  max-width: 36rem;
   margin: 0 auto;
   width: 100%;
-  padding-left: 0.875rem;
-  border-left: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
 }
 
 .discover-meta {
   display: flex;
-  flex-wrap: wrap;
   gap: 0.5rem;
+  flex-wrap: wrap;
   margin-bottom: 1rem;
 }
 
 .discover-category,
 .discover-audience {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
+  font-size: 0.6875rem;
   text-transform: uppercase;
-  padding: 0.2rem 0.45rem;
-  border: 1px solid rgb(255 255 255 / 0.15);
-  color: rgb(255 255 255 / 0.55);
-}
-
-.discover-audience {
-  border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
-  color: var(--color-accent-muted);
+  letter-spacing: 0.06em;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid rgb(255 255 255 / 0.25);
+  border-radius: 999px;
 }
 
 .discover-hook {
-  font-size: 0.8125rem;
-  color: var(--color-accent-muted);
-  margin-bottom: 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: 0.75rem;
+  color: #93c5fd;
 }
 
 .discover-title {
   font-family: var(--font-display);
   font-size: clamp(1.5rem, 4vw, 2rem);
-  line-height: 1.15;
-  margin-bottom: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 1rem;
 }
 
 .discover-content {
-  font-size: 0.9375rem;
+  font-size: 1rem;
   line-height: 1.65;
-  color: rgb(255 255 255 / 0.72);
+  color: rgb(255 255 255 / 0.9);
+  margin-bottom: 1.25rem;
 }
 
 .discover-quiz {
-  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
 }
 
 .discover-quiz-btn {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-accent-muted);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  font-size: 0.8125rem;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid rgb(255 255 255 / 0.35);
+  background: rgb(255 255 255 / 0.08);
+  color: #fff;
+  cursor: pointer;
 }
 
 .discover-quiz-box {
-  margin-top: 0.65rem;
-  padding: 0.75rem 0.875rem;
-  background: rgb(255 255 255 / 0.05);
-  border: 1px solid rgb(255 255 255 / 0.1);
+  margin-top: 0.75rem;
+  padding: 0.875rem;
+  background: rgb(0 0 0 / 0.25);
+  border-left: 3px solid #60a5fa;
 }
 
 .discover-quiz-q {
-  font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
 }
 
 .discover-quiz-a {
-  margin-top: 0.35rem;
-  font-size: 0.75rem;
-  color: rgb(74 222 128 / 0.85);
+  font-size: 0.875rem;
+  color: #bfdbfe;
 }
 
 .discover-slide-footer {
   display: flex;
+  gap: 0.75rem;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid rgb(255 255 255 / 0.08);
 }
 
 .discover-stat {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  padding: 0.45rem 0.65rem;
-  border: 1px solid rgb(255 255 255 / 0.12);
-  background: rgb(255 255 255 / 0.04);
-  color: rgb(255 255 255 / 0.75);
-  transition: background 0.2s, border-color 0.2s;
-}
-
-.discover-stat:hover {
-  background: rgb(255 255 255 / 0.08);
+  font-size: 0.8125rem;
+  padding: 0.5rem 0.75rem;
+  background: rgb(255 255 255 / 0.1);
+  border: 1px solid rgb(255 255 255 / 0.2);
+  color: #fff;
+  cursor: pointer;
 }
 
 .discover-stat--active {
-  border-color: rgb(220 80 80 / 0.5);
-  color: rgb(255 180 180);
+  background: rgb(25 118 210 / 0.45);
+  border-color: #60a5fa;
 }
 
 .discover-scroll-tip {
@@ -434,112 +476,99 @@ onUnmounted(() => observer?.disconnect())
   bottom: 0.75rem;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  color: rgb(255 255 255 / 0.25);
+  font-size: 0.6875rem;
+  color: rgb(255 255 255 / 0.45);
+  animation: discover-bounce 2s ease infinite;
+}
+
+@keyframes discover-bounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-4px); }
 }
 
 .discover-panel {
-  position: fixed;
-  z-index: 50;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  max-height: 72dvh;
-  display: flex;
+  display: none;
   flex-direction: column;
-  background: var(--color-paper);
+  background: #fff;
   color: var(--color-ink);
-  border-top: 1px solid var(--color-line);
-  transform: translateY(100%);
-  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  border-left: 1px solid var(--color-line);
+  height: calc(100dvh - 3.5rem);
 }
 
 .discover-panel--open {
-  transform: translateY(0);
+  display: flex;
 }
 
 .discover-panel-head {
   display: flex;
-  align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1rem 0.75rem;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
   border-bottom: 1px solid var(--color-line);
 }
 
 .discover-panel-label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
+  font-size: 0.6875rem;
   text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--color-ink-faint);
 }
 
 .discover-panel-topic {
-  font-family: var(--font-display);
-  font-size: 1rem;
-  color: var(--color-ink);
-  margin-top: 0.15rem;
+  font-weight: 600;
+  font-size: 0.9375rem;
 }
 
 .discover-panel-close {
-  font-size: 0.75rem;
-  color: var(--color-ink-muted);
-  padding: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--color-accent);
+  background: none;
+  border: none;
+  cursor: pointer;
 }
 
 .discover-panel-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0.75rem 1rem;
-  min-height: 8rem;
-  max-height: 40dvh;
+  padding: 1rem;
 }
 
 .discover-panel-empty {
-  font-size: 0.8125rem;
-  color: var(--color-ink-faint);
-  text-align: center;
-  padding: 2rem 0;
+  font-size: 0.875rem;
+  color: var(--color-ink-muted);
 }
 
 .discover-comment {
   display: flex;
-  gap: 0.65rem;
-  padding: 0.65rem 0;
-  border-bottom: 1px solid var(--color-line);
-}
-
-.discover-comment:last-child {
-  border-bottom: none;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
 }
 
 .discover-comment-avatar {
-  flex-shrink: 0;
   width: 2rem;
   height: 2rem;
+  border-radius: 999px;
+  background: var(--color-accent-light);
+  color: var(--color-accent);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-weight: 700;
-  background: var(--color-brand);
-  color: white;
+  flex-shrink: 0;
 }
 
 .discover-comment-head {
   display: flex;
-  align-items: baseline;
   gap: 0.5rem;
-  flex-wrap: wrap;
+  align-items: baseline;
+  margin-bottom: 0.25rem;
 }
 
 .discover-comment-author {
   font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--color-ink);
 }
 
 .discover-comment-time {
@@ -548,97 +577,56 @@ onUnmounted(() => observer?.disconnect())
 }
 
 .discover-comment-text {
-  margin-top: 0.2rem;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.5;
-  color: var(--color-ink-muted);
 }
 
 .discover-panel-form {
-  padding: 0.75rem 1rem 1rem;
+  padding: 1rem;
   border-top: 1px solid var(--color-line);
-  background: white;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.discover-input {
+.discover-panel-input {
   width: 100%;
-  padding: 0.55rem 0.65rem;
-  font-size: 0.8125rem;
   border: 1px solid var(--color-line);
-  background: var(--color-paper);
-  color: var(--color-ink);
-}
-
-.discover-input:focus {
-  outline: none;
-  border-color: var(--color-accent);
-}
-
-.discover-input--area {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
   resize: vertical;
-  min-height: 3.5rem;
 }
 
-.discover-submit {
-  align-self: flex-end;
-  padding: 0.5rem 1rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
+.discover-panel-input--sm {
+  resize: none;
+}
+
+.discover-panel-submit {
+  padding: 0.625rem;
   background: var(--color-accent);
-  color: white;
-  transition: background 0.2s;
+  color: #fff;
+  border: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-.discover-submit:hover:not(:disabled) {
-  background: var(--color-accent-hover);
-}
-
-.discover-submit:disabled {
-  opacity: 0.4;
+.discover-panel-submit:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.discover-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 45;
-  background: rgb(5 46 22 / 0.5);
-}
-
-@media (min-width: 1024px) {
-  .discover-body--panel-open .discover-feed {
-    margin-right: 22rem;
+@media (max-width: 768px) {
+  .discover-body--panel-open {
+    grid-template-columns: 1fr;
   }
 
   .discover-panel {
-    top: 3.25rem;
-    bottom: 0;
-    max-height: none;
-    width: 22rem;
-    border-top: none;
-    border-left: 1px solid var(--color-line);
-    transform: translateX(100%);
-  }
-
-  .discover-panel--open {
-    transform: translateX(0);
-  }
-
-  .discover-panel-list {
-    max-height: none;
-  }
-
-  .discover-slide {
-    padding-right: 1.5rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .discover-panel {
-    transition: none;
+    position: fixed;
+    inset: 0;
+    top: 3.5rem;
+    z-index: 30;
+    height: auto;
   }
 }
 </style>

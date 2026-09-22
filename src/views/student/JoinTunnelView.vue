@@ -124,7 +124,7 @@ onMounted(() => {
       <h1 class="font-display text-3xl text-ink">Pointer ma présence</h1>
       <p class="mt-2 text-sm text-ink-muted max-w-md mx-auto">
         Connectez-vous au WiFi de la salle, puis validez. Seuls les appareils sur le même réseau local
-        que l'enseignant peuvent pointer — un absent à distance est refusé.
+        que l'enseignant peuvent pointer - un absent à distance est refusé.
       </p>
     </div>
 

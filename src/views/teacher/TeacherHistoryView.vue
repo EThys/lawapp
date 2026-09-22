@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useEvaluationStore } from '@/stores/evaluations'
@@ -17,17 +17,11 @@ import { SESSION_STATUS_LABELS, VIOLATION_TYPE_LABELS } from '@/types'
 import { formatDate } from '@/utils/helpers'
 import { downloadExcel, downloadPdf } from '@/utils/exportReports'
 import {
-  getStudentAnswerText,
-  isAnswerCorrect,
-  getCorrectAnswerText,
-} from '@/utils/evaluationReview'
-import {
   ArrowLeft,
   CheckCircle,
   ShieldAlert,
   History,
   UserX,
-  X,
   FileSpreadsheet,
   FileText,
 } from '@lucide/vue'
@@ -50,10 +44,16 @@ const tabs: { id: TabId; label: string; icon: typeof CheckCircle }[] = [
 const activeTab = ref<TabId>((route.query.tab as TabId) || 'submitted')
 const searchQuery = ref('')
 const evaluationFilter = ref('all')
-const selectedSessionId = ref<string | null>(null)
 
 watch(activeTab, (tab) => {
   router.replace({ query: { ...route.query, tab } })
+})
+
+onMounted(() => {
+  const sessionId = route.query.session
+  if (typeof sessionId === 'string' && sessionId) {
+    void router.replace(`/teacher/session/${sessionId}`)
+  }
 })
 
 const teacherId = computed(() => auth.currentUser?.id ?? '')
@@ -149,20 +149,12 @@ const sessionTableRows = computed(() =>
     studentId: s.studentId,
     evaluation: evaluationTitleById.value.get(s.evaluationId) ?? s.evaluationCode,
     date: s.submittedAt ? formatDate(s.submittedAt) : formatDate(s.startedAt),
-    score: s.score !== undefined ? `${s.score}/${s.maxScore}` : '—',
+    score: s.score !== undefined ? `${s.score}/${s.maxScore}` : '-',
     status: SESSION_STATUS_LABELS[s.status],
     statusKey: s.status,
-    alerts: s.violations.length > 0 ? String(s.violations.length) : '—',
+    alerts: s.violations.length > 0 ? String(s.violations.length) : '-',
     violationCount: s.violations.length,
   }))
-)
-
-const selectedSession = computed(() =>
-  selectedSessionId.value ? evalStore.getSession(selectedSessionId.value) : undefined
-)
-
-const selectedEvaluation = computed(() =>
-  selectedSession.value ? evalStore.getById(selectedSession.value.evaluationId) : undefined
 )
 
 function statusVariant(status: SessionStatus) {
@@ -176,16 +168,13 @@ function statusVariant(status: SessionStatus) {
   return map[status]
 }
 
-function openSession(session: ExamSession) {
-  selectedSessionId.value = session.id
-}
-
 function openSessionRow(row: Record<string, unknown>) {
-  openSession((row as { session: ExamSession }).session)
+  const session = (row as { session: ExamSession }).session
+  void router.push(`/teacher/session/${session.id}`)
 }
 
-function closeSession() {
-  selectedSessionId.value = null
+function studentDisplayName(session: ExamSession) {
+  return `${session.studentLastName} ${session.studentFirstName}`.trim() || 'Étudiant'
 }
 
 function exportRows(): string[][] {
@@ -198,7 +187,7 @@ function exportRows(): string[][] {
         r.studentName,
         r.studentId,
         r.type === 'present' ? 'Présent' : 'Absent',
-        r.markedAtLabel ?? '—',
+        r.markedAtLabel ?? '-',
       ]),
     ]
   }
@@ -223,10 +212,10 @@ function exportRows(): string[][] {
       s.studentFirstName,
       s.studentId,
       SESSION_STATUS_LABELS[s.status],
-      String(s.score ?? '—'),
-      String(s.maxScore ?? '—'),
+      String(s.score ?? '-'),
+      String(s.maxScore ?? '-'),
       String(s.violations.length),
-      s.violations.map((v) => `${VIOLATION_TYPE_LABELS[v.type]}: ${v.message}`).join(' · ') || '—',
+      s.violations.map((v) => `${VIOLATION_TYPE_LABELS[v.type]}: ${v.message}`).join(' · ') || '-',
       String(s.timeSpentSeconds),
       s.submittedAt ? formatDate(s.submittedAt) : formatDate(s.startedAt),
     ]),
@@ -241,10 +230,6 @@ function exportExcel() {
 function exportPdf() {
   const title = `LawApp · ${tabs.find((t) => t.id === activeTab.value)?.label ?? 'Historique'}`
   downloadPdf(title, exportRows(), `lawapp-${activeTab.value}.pdf`)
-}
-
-function studentDisplayName(session: ExamSession) {
-  return `${session.studentLastName} ${session.studentFirstName}`
 }
 </script>
 
@@ -285,7 +270,7 @@ function studentDisplayName(session: ExamSession) {
         v-for="tab in tabs"
         :key="tab.id"
         type="button"
-        class="flex items-center gap-2 px-4 py-2.5 min-h-11 text-sm font-medium border whitespace-nowrap transition-colors flex-shrink-0"
+        class="flex items-center gap-2 px-4 py-2.5 min-h-11 text-sm font-medium border whitespace-nowrap transition-colors flex-shrink-0 cursor-pointer"
         :class="activeTab === tab.id
           ? 'bg-accent text-white border-accent'
           : 'bg-white text-ink-muted border-line hover:border-line-strong hover:text-ink'"
@@ -334,7 +319,7 @@ function studentDisplayName(session: ExamSession) {
             >
               {{ row.alerts }} alerte(s)
             </AppBadge>
-            <span v-else class="text-ink-faint">—</span>
+            <span v-else class="text-ink-faint">-</span>
           </template>
         </AppDataTable>
       </AppCard>
@@ -369,135 +354,5 @@ function studentDisplayName(session: ExamSession) {
         @update:type-filter="absenceTypeFilter = $event as AttendanceListType"
       />
     </template>
-
-    <Teleport to="body">
-      <div
-        v-if="selectedSession && selectedEvaluation"
-        class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
-        @click.self="closeSession"
-      >
-        <div class="absolute inset-0 bg-ink/40" />
-        <div
-          class="relative w-full sm:max-w-2xl max-h-[92dvh] sm:max-h-[85vh] bg-white border border-line shadow-xl flex flex-col overflow-hidden"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div class="flex items-start justify-between gap-4 px-5 py-4 border-b border-line flex-shrink-0">
-            <div class="min-w-0">
-              <p class="label-caps mb-1">Détail session</p>
-              <h2 class="font-display text-xl text-ink truncate">
-                {{ studentDisplayName(selectedSession) }}
-              </h2>
-              <p class="text-sm text-ink-muted truncate">{{ selectedEvaluation.title }}</p>
-            </div>
-            <button
-              type="button"
-              class="flex items-center justify-center min-h-11 min-w-11 text-ink-muted hover:text-ink flex-shrink-0"
-              aria-label="Fermer"
-              @click="closeSession"
-            >
-              <X class="w-5 h-5" />
-            </button>
-          </div>
-
-          <div class="flex-1 overflow-y-auto px-5 py-5 space-y-6">
-            <div class="flex flex-wrap gap-2">
-              <AppBadge :variant="statusVariant(selectedSession.status)">
-                {{ SESSION_STATUS_LABELS[selectedSession.status] }}
-              </AppBadge>
-              <AppBadge v-if="selectedSession.score !== undefined" variant="brand">
-                {{ selectedSession.score }}/{{ selectedSession.maxScore }} pts
-              </AppBadge>
-              <AppBadge variant="muted">
-                {{ Math.floor(selectedSession.timeSpentSeconds / 60) }} min
-              </AppBadge>
-            </div>
-
-            <div v-if="selectedSession.violations.length > 0">
-              <p class="text-xs font-semibold uppercase tracking-wide text-danger mb-3 flex items-center gap-1.5">
-                <ShieldAlert class="w-4 h-4" />
-                Violations ({{ selectedSession.violations.length }})
-              </p>
-              <ul class="space-y-2">
-                <li
-                  v-for="(v, i) in selectedSession.violations"
-                  :key="i"
-                  class="p-3 border border-danger/20 bg-danger-bg text-sm"
-                >
-                  <p class="font-medium text-danger">
-                    {{ VIOLATION_TYPE_LABELS[v.type] }}
-                  </p>
-                  <p class="text-xs text-danger/80 mt-0.5">{{ v.message }}</p>
-                  <p class="text-[11px] text-ink-faint mt-1">{{ formatDate(v.timestamp) }}</p>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-wide text-ink-faint mb-3">
-                Réponses ({{ selectedSession.answers.length }}/{{ selectedEvaluation.questions.length }})
-              </p>
-              <div v-if="selectedSession.answers.length === 0" class="text-sm text-ink-muted">
-                Aucune réponse enregistrée.
-              </div>
-              <div v-else class="space-y-4">
-                <div
-                  v-for="(question, qi) in selectedEvaluation.questions"
-                  :key="question.id"
-                  class="p-4 border border-line bg-paper/40"
-                >
-                  <p class="text-xs text-ink-faint mb-1">Question {{ qi + 1 }}</p>
-                  <p class="text-sm text-ink font-medium mb-2 break-words">{{ question.text }}</p>
-                  <p class="text-sm text-ink-muted break-words">
-                    <span class="font-medium text-ink">Réponse :</span>
-                    {{
-                      getStudentAnswerText(
-                        question,
-                        selectedSession.answers.find((a) => a.questionId === question.id)
-                      )
-                    }}
-                  </p>
-                  <p
-                    v-if="selectedEvaluation.settings.correctionMode === 'auto'"
-                    class="text-xs mt-2"
-                    :class="{
-                      'text-success': isAnswerCorrect(
-                        question,
-                        selectedSession.answers.find((a) => a.questionId === question.id)
-                      ) === true,
-                      'text-danger': isAnswerCorrect(
-                        question,
-                        selectedSession.answers.find((a) => a.questionId === question.id)
-                      ) === false,
-                    }"
-                  >
-                    {{
-                      (() => {
-                        const ans = selectedSession.answers.find((a) => a.questionId === question.id)
-                        const correct = isAnswerCorrect(question, ans)
-                        if (correct === true) return 'Correct'
-                        if (correct === false) {
-                          const expected = getCorrectAnswerText(question)
-                          return expected ? `Incorrect · attendu : ${expected}` : 'Incorrect'
-                        }
-                        return 'Correction manuelle ou document'
-                      })()
-                    }}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex-shrink-0 px-5 py-4 border-t border-line bg-paper/50 pb-safe">
-            <RouterLink :to="`/teacher/evaluation/${selectedEvaluation.id}`" @click="closeSession">
-              <AppButton variant="outline" class="w-full sm:w-auto">
-                Voir l'évaluation
-              </AppButton>
-            </RouterLink>
-          </div>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>

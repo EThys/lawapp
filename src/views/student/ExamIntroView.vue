@@ -2,19 +2,24 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useEvaluationStore } from '@/stores/evaluations'
+import { isApiEnabled } from '@/config/features'
+import {
+  examIntroAnticheatRules,
+  resolveEvaluationDurationMinutes,
+} from '@/utils/evaluationApiMapper'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import { EVALUATION_TYPE_LABELS } from '@/types'
+import { formatMinutes } from '@/utils/helpers'
 import {
   Shield,
   Clock,
-  AlertTriangle,
-  Monitor,
-  Eye,
-  Ban,
   ArrowRight,
   FileText,
   CheckCircle,
+  Loader2,
+  ListChecks,
+  ChevronDown,
 } from '@lucide/vue'
 
 const route = useRoute()
@@ -24,14 +29,24 @@ const store = useEvaluationStore()
 const sessionId = route.params.sessionId as string
 const session = computed(() => store.getSession(sessionId))
 const evaluation = computed(() =>
-  session.value ? store.getById(session.value.evaluationId) : undefined
+  session.value ? store.getById(session.value.evaluationId) : undefined,
 )
 
 const startError = ref('')
 const starting = ref(false)
 const ready = ref(false)
+const loadingPassage = ref(false)
+const rulesExpanded = ref(false)
 
 const questionCount = computed(() => evaluation.value?.questions.length ?? 0)
+
+const durationMinutes = computed(() =>
+  evaluation.value ? resolveEvaluationDurationMinutes(evaluation.value) : null,
+)
+
+const durationLabel = computed(() =>
+  durationMinutes.value != null ? formatMinutes(durationMinutes.value) : '—',
+)
 
 const questionBreakdown = computed(() => {
   if (!evaluation.value) return []
@@ -41,9 +56,9 @@ const questionBreakdown = computed(() => {
   }
   const labels: Record<string, string> = {
     qcm: 'QCM',
-    truefalse: 'Vrai/Faux',
-    short: 'Réponse courte',
-    document: 'Dépôt document',
+    truefalse: 'V/F',
+    short: 'Ouverte',
+    document: 'Document',
   }
   return Object.entries(counts).map(([type, count]) => ({
     label: labels[type] ?? type,
@@ -54,23 +69,46 @@ const questionBreakdown = computed(() => {
 const instantFeedback = computed(
   () =>
     evaluation.value?.settings.correctionMode === 'auto' &&
-    (evaluation.value?.settings.instantFeedback ?? true)
+    (evaluation.value?.settings.instantFeedback ?? true),
 )
 
-const fullscreenSupported = typeof document.documentElement.requestFullscreen === 'function'
+const anticheatRules = computed(() =>
+  evaluation.value ? examIntroAnticheatRules(evaluation.value) : [],
+)
 
-const rules = computed(() => [
-  { icon: Eye, text: 'Ne quittez pas l\'onglet : échec immédiat' },
-  {
-    icon: Monitor,
-    text: fullscreenSupported
-      ? 'Restez en plein écran pendant toute l\'évaluation'
-      : 'Sur mobile, restez dans cet onglet sans changer d\'application',
-  },
-  { icon: Ban, text: 'Copier-coller et menu contextuel interdits' },
-  { icon: Clock, text: `Durée : ${evaluation.value?.durationMinutes ?? '?'} minutes` },
-  { icon: Shield, text: 'Les violations sont enregistrées et signalées' },
-])
+const visibleRules = computed(() =>
+  rulesExpanded.value ? anticheatRules.value : anticheatRules.value.slice(0, 2),
+)
+
+const toneClasses: Record<string, string> = {
+  danger: 'border-danger/20 bg-danger-bg/50 text-danger',
+  warning: 'border-warning/25 bg-warning-bg/40 text-ink',
+  info: 'border-line bg-paper-warm/80 text-ink-muted',
+}
+
+async function ensurePassageLoaded(): Promise<boolean> {
+  const ev = evaluation.value
+  if (!ev) return false
+  if (ev.questions.length > 0 && isApiEnabled() && ev.apiId != null) {
+    loadingPassage.value = true
+    try {
+      const passage = await store.loadPassageFromApi(ev.apiId)
+      return !!(passage && passage.questions.length)
+    } finally {
+      loadingPassage.value = false
+    }
+  }
+  if (ev.questions.length > 0) return true
+  if (!isApiEnabled() || ev.apiId == null) return false
+
+  loadingPassage.value = true
+  try {
+    const passage = await store.loadPassageFromApi(ev.apiId)
+    return !!(passage && passage.questions.length)
+  } finally {
+    loadingPassage.value = false
+  }
+}
 
 async function startExam() {
   startError.value = ''
@@ -85,6 +123,14 @@ async function startExam() {
 
     if (['submitted', 'failed', 'expired'].includes(current.status)) {
       await router.replace(`/exam/${sessionId}/result`)
+      return
+    }
+
+    const ok = await ensurePassageLoaded()
+    if (!ok) {
+      startError.value =
+        store.apiError ||
+        'Impossible de charger la feuille d\'évaluation (passage). Réessayez.'
       return
     }
 
@@ -126,90 +172,121 @@ onMounted(() => {
     return
   }
 
-  ready.value = true
+  void ensurePassageLoaded().then((ok) => {
+    if (!ok && evaluation.value?.apiId) {
+      startError.value =
+        store.apiError ||
+        'Feuille d\'évaluation indisponible. Vérifiez que l\'épreuve est ouverte.'
+    }
+    ready.value = true
+  })
 })
 </script>
 
 <template>
   <div
-    v-if="ready && session && evaluation"
-    class="min-h-dvh bg-brand-dark flex items-start justify-center overflow-y-auto py-6 px-4 sm:items-center sm:p-8"
+    v-if="!ready || loadingPassage"
+    class="min-h-dvh bg-brand-dark flex flex-col items-center justify-center gap-3 px-4 text-white/90"
   >
-    <div class="max-w-lg w-full panel-elevated my-auto">
-      <div class="px-5 sm:px-8 pt-6 sm:pt-8 pb-5 sm:pb-6 border-b border-line">
-        <p class="label-caps mb-3">Avant de commencer</p>
-        <h1 class="font-display text-2xl text-ink">Passer l'évaluation</h1>
-        <p class="text-sm text-ink-muted mt-2">
-          Vérifiez les informations ci-dessous. Le chrono démarre dès validation.
+    <Loader2 class="w-7 h-7 animate-spin text-accent" />
+    <p class="text-sm">Préparation de l’épreuve…</p>
+  </div>
+
+  <div
+    v-else-if="session && evaluation"
+    class="min-h-dvh bg-brand-dark flex items-center justify-center p-4 sm:p-6"
+  >
+    <div
+      class="max-w-md w-full max-h-[min(92dvh,720px)] flex flex-col overflow-hidden rounded-md border border-white/10 bg-paper shadow-2xl"
+    >
+      <div class="flex-shrink-0 px-5 pt-5 pb-4 bg-brand-dark text-white border-b border-white/10">
+        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/55 mb-1">
+          Avant de commencer
+        </p>
+        <h1 class="font-display text-xl leading-snug line-clamp-2">{{ evaluation.title }}</h1>
+        <p class="text-xs text-white/65 mt-2 truncate">
+          {{ session.studentLastName }} {{ session.studentFirstName }} · {{ session.studentId }}
         </p>
       </div>
 
-      <div class="px-5 sm:px-8 py-5 sm:py-6 space-y-5 sm:space-y-6">
-        <div class="p-5 bg-paper border border-line">
-          <h2 class="font-display text-lg text-ink">{{ evaluation.title }}</h2>
-          <div class="flex items-center gap-2 mt-2 flex-wrap">
-            <AppBadge variant="brand">{{ EVALUATION_TYPE_LABELS[evaluation.type] }}</AppBadge>
-            <span class="text-xs text-ink-faint">{{ evaluation.subject }}</span>
+      <div class="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <div class="p-3 border border-line bg-paper-warm/50 rounded-sm">
+            <p class="text-[10px] uppercase tracking-wide text-ink-faint flex items-center gap-1">
+              <Clock class="w-3 h-3" /> Durée
+            </p>
+            <p class="font-semibold text-ink mt-0.5">{{ durationLabel }}</p>
           </div>
-          <p class="text-xs text-ink-muted mt-4 border-t border-line pt-3">
-            {{ session.studentLastName }} {{ session.studentFirstName }}
-            <span class="text-ink-faint">· {{ session.studentId }}</span>
-          </p>
+          <div class="p-3 border border-line bg-paper-warm/50 rounded-sm">
+            <p class="text-[10px] uppercase tracking-wide text-ink-faint flex items-center gap-1">
+              <ListChecks class="w-3 h-3" /> Questions
+            </p>
+            <p class="font-semibold text-ink mt-0.5">{{ questionCount }}</p>
+            <p v-if="questionBreakdown.length" class="text-[10px] text-ink-muted truncate mt-0.5">
+              {{ questionBreakdown.map((b) => `${b.count} ${b.label}`).join(' · ') }}
+            </p>
+          </div>
         </div>
 
-        <div class="p-4 border border-line bg-white">
-          <div class="flex items-center gap-2 mb-3">
-            <FileText class="w-4 h-4 text-accent" />
-            <p class="text-sm font-medium text-ink">{{ questionCount }} question{{ questionCount > 1 ? 's' : '' }}</p>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            <span
-              v-for="item in questionBreakdown"
-              :key="item.label"
-              class="text-xs px-2.5 py-1 bg-paper-warm border border-line text-ink-muted"
+        <p
+          v-if="instantFeedback"
+          class="text-xs text-accent flex items-center gap-1.5 px-2 py-1.5 bg-accent-light/50 border border-accent/15"
+        >
+          <CheckCircle class="w-3.5 h-3.5 flex-shrink-0" />
+          Retour immédiat QCM / vrai-faux
+        </p>
+
+        <div
+          v-if="evaluation.settings.instructions"
+          class="p-3 border border-accent/15 bg-accent-light/25 text-sm text-ink line-clamp-4"
+          :title="evaluation.settings.instructions"
+        >
+          <p class="text-[10px] font-semibold text-accent uppercase mb-1 flex items-center gap-1">
+            <FileText class="w-3 h-3" /> Consignes
+          </p>
+          <p class="text-xs leading-relaxed whitespace-pre-wrap">{{ evaluation.settings.instructions }}</p>
+        </div>
+
+        <section v-if="anticheatRules.length" class="space-y-2">
+          <p class="text-xs font-semibold text-ink flex items-center gap-1.5">
+            <Shield class="w-3.5 h-3.5 text-danger" />
+            Règles anti-triche
+          </p>
+          <ul class="space-y-1.5">
+            <li
+              v-for="rule in visibleRules"
+              :key="rule.id"
+              class="px-2.5 py-2 border text-xs leading-snug rounded-sm"
+              :class="toneClasses[rule.tone]"
             >
-              {{ item.count }} {{ item.label }}
-            </span>
-          </div>
-          <p
-            v-if="instantFeedback"
-            class="text-xs text-accent mt-3 flex items-center gap-1.5"
+              <span class="font-medium">{{ rule.title }}</span>
+              <span v-if="rule.detail && rulesExpanded" class="block mt-0.5 opacity-90">{{
+                rule.detail
+              }}</span>
+            </li>
+          </ul>
+          <button
+            v-if="anticheatRules.length > 2"
+            type="button"
+            class="text-xs text-accent font-medium flex items-center gap-1 cursor-pointer"
+            @click="rulesExpanded = !rulesExpanded"
           >
-            <CheckCircle class="w-3.5 h-3.5" />
-            Retour immédiat activé pour les QCM et vrai/faux
-          </p>
-        </div>
+            <ChevronDown class="w-3.5 h-3.5 transition-transform" :class="{ 'rotate-180': rulesExpanded }" />
+            {{ rulesExpanded ? 'Réduire' : `Voir tout (${anticheatRules.length})` }}
+          </button>
+        </section>
 
-        <div v-if="evaluation.settings.instructions" class="p-4 bg-accent-light border border-accent/15">
-          <p class="text-xs font-medium text-accent uppercase tracking-wide mb-1.5">Consignes</p>
-          <p class="text-sm text-accent leading-relaxed">{{ evaluation.settings.instructions }}</p>
-        </div>
+        <p class="text-[11px] text-ink-muted leading-relaxed">
+          Le chrono démarre à « Commencer » et ne peut pas être mis en pause. En cas de fin du temps,
+          vos réponses seront envoyées automatiquement.
+        </p>
 
-        <ul class="space-y-3">
-          <li
-            v-for="(rule, i) in rules"
-            :key="i"
-            class="flex items-start gap-3 text-sm text-ink-muted"
-          >
-            <component :is="rule.icon" class="w-4 h-4 text-danger flex-shrink-0 mt-0.5" />
-            {{ rule.text }}
-          </li>
-        </ul>
-
-        <div class="flex items-start gap-2.5 p-4 bg-danger-bg border border-danger/15">
-          <AlertTriangle class="w-4 h-4 text-danger flex-shrink-0 mt-0.5" />
-          <p class="text-xs text-danger leading-relaxed">
-            En lançant le chrono, vous acceptez les règles anti-triche.
-            Le temps ne peut pas être mis en pause.
-          </p>
-        </div>
-
-        <p v-if="startError" class="text-sm text-danger">{{ startError }}</p>
+        <p v-if="startError" class="text-xs text-danger">{{ startError }}</p>
       </div>
 
-      <div class="px-5 sm:px-8 py-5 sm:py-6 border-t border-line bg-paper/50 pb-safe">
+      <div class="flex-shrink-0 px-5 py-4 border-t border-line bg-paper/90 pb-safe">
         <AppButton class="w-full" size="lg" :loading="starting" @click="startExam">
-          Commencer l'évaluation
+          Commencer l’évaluation
           <ArrowRight class="w-4 h-4" />
         </AppButton>
       </div>

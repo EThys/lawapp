@@ -24,7 +24,7 @@ const modules = computed(() => [
     title: 'Évaluations sécurisées',
     body: 'Créez TP, interrogations, devoirs et exercices pour vos étudiants, élèves et formations. Chronomètre, code d\'accès, anti-triche configurable et analyse des résultats.',
     cta: 'Espace enseignant',
-    to: auth.isTeacher ? '/teacher' : '/register?role=teacher',
+    to: auth.isTeacher ? '/teacher' : '/register',
     icon: FileText,
   },
   {
@@ -98,7 +98,7 @@ const audiences = ['Jeunes étudiants', 'Professionnels du droit', 'Grand public
           <div class="hero__actions hero-anim hero-anim--3">
             <RouterLink
               v-if="!auth.isAuthenticated"
-              to="/register?role=teacher"
+              to="/register"
               class="group"
             >
               <AppButton size="lg" class="hover-lift">
@@ -113,7 +113,7 @@ const audiences = ['Jeunes étudiants', 'Professionnels du droit', 'Grand public
               </AppButton>
             </RouterLink>
             <RouterLink
-              :to="auth.isAuthenticated && auth.isStudent ? '/student' : '/register?role=student'"
+              :to="auth.isAuthenticated && auth.isStudent ? '/student' : '/register'"
             >
               <AppButton variant="outline" size="lg" class="hover-lift hero__btn-outline">
                 {{ auth.isStudent ? 'Espace étudiant' : 'Compte étudiant' }}
@@ -295,7 +295,7 @@ const audiences = ['Jeunes étudiants', 'Professionnels du droit', 'Grand public
               <Sparkles class="w-4 h-4 transition-transform duration-300 group-hover:rotate-12" />
             </AppButton>
           </RouterLink>
-          <RouterLink v-reveal="{ delay: 160 }" to="/register?role=teacher">
+          <RouterLink v-reveal="{ delay: 160 }" to="/register">
             <AppButton class="!bg-white !text-brand hover:!bg-accent-light w-full sm:w-auto hover-lift">
               Inscription enseignant
             </AppButton>

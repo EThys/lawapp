@@ -1,78 +1,96 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { useRoute, useRouter, RouterLink } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter, RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AuthLayout from '@/components/layout/AuthLayout.vue'
-import AuthRoleTabs from '@/components/auth/AuthRoleTabs.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
-import AppSelect from '@/components/ui/AppSelect.vue'
+import AppPhoneInput from '@/components/ui/AppPhoneInput.vue'
+import AppCombobox from '@/components/ui/AppCombobox.vue'
 import AppStepper from '@/components/ui/AppStepper.vue'
+import { CITIES_CONGO, DEFAULT_CITY } from '@/data/cities'
+import { useVerificationStore } from '@/stores/verification'
 import {
-  INSTITUTIONS_CONGO,
-  DEFAULT_UNIVERSITY,
-  isInstitutionSelectable,
-} from '@/data/universities'
-import { ROLE_LABELS } from '@/types/auth'
+  persistPendingVerification,
+  persistPendingLoginCredentials,
+  persistRegistrationRole,
+  clearPendingRegistrationRole,
+} from '@/utils/verificationSession'
+import { validateCdPhone } from '@/utils/auth'
+import { dismissKeyboard, missingFieldsMessage } from '@/utils/form'
+import { clearProfileSnapshot, clearRoleIntent } from '@/utils/memberProfile'
 import type { UserRole } from '@/types/auth'
-import { AlertCircle, Check, ChevronLeft, ChevronRight } from '@lucide/vue'
+import { AlertCircle, ChevronLeft, ChevronRight, GraduationCap, BookOpen } from '@lucide/vue'
 
-const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
 const step = ref(0)
-const steps = ['Profil', 'Identité', 'Sécurité']
+const steps = ['Identité', 'Profil', 'Sécurité']
 
-const role = ref<UserRole>((route.query.role as UserRole) || 'teacher')
+const stepHint = computed(() => {
+  if (step.value === 0) return 'Vos informations personnelles.'
+  if (step.value === 1) return 'Vous enseignez ou vous étudiez ?'
+  return 'Choisissez un mot de passe sécurisé.'
+})
+const intendedRole = ref<UserRole | null>(null)
+
 const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const firstName = ref('')
 const lastName = ref('')
-const institution = ref(DEFAULT_UNIVERSITY)
-const studentId = ref('')
+const phoneE164 = ref('')
+const city = ref(DEFAULT_CITY)
 const error = ref('')
 const loading = ref(false)
 const acceptTerms = ref(false)
 
-const isTeacher = computed(() => role.value === 'teacher')
-
-function setRole(r: UserRole) {
-  role.value = r
-  router.replace({ path: route.path, query: { ...route.query, role: r } })
-}
-
-watch(
-  () => route.query.role,
-  (q) => {
-    if (q === 'student' || q === 'teacher') role.value = q
-  }
-)
+onMounted(() => {
+  clearRoleIntent()
+  clearProfileSnapshot()
+  clearPendingRegistrationRole()
+})
 
 function validateStep(): boolean {
   error.value = ''
+  if (step.value === 0) {
+    const missing: string[] = []
+    if (!firstName.value.trim()) missing.push('Prénom')
+    if (!lastName.value.trim()) missing.push('Nom')
+    if (!email.value.trim()) missing.push('Adresse e-mail')
+    if (!phoneE164.value.trim()) missing.push('Téléphone mobile')
+    if (!city.value.trim()) missing.push('Ville')
+    if (missing.length) {
+      error.value = missingFieldsMessage(missing)
+      return false
+    }
+    const phoneErr = validateCdPhone(phoneE164.value)
+    if (phoneErr) {
+      error.value = phoneErr
+      return false
+    }
+  }
   if (step.value === 1) {
-    if (!firstName.value.trim() || !lastName.value.trim()) {
-      error.value = 'Le prénom et le nom sont requis.'
-      return false
-    }
-    if (!email.value.trim()) {
-      error.value = 'L\'adresse e-mail est requise.'
-      return false
-    }
-    if (!isTeacher.value && !studentId.value.trim()) {
-      error.value = 'L\'identifiant étudiant est requis.'
+    if (!intendedRole.value) {
+      error.value = 'Indiquez si vous êtes enseignant ou étudiant.'
       return false
     }
   }
   if (step.value === 2) {
-    if (!acceptTerms.value) {
-      error.value = 'Vous devez accepter les conditions d\'utilisation.'
+    const missing: string[] = []
+    if (!password.value) missing.push('Mot de passe')
+    if (!confirmPassword.value) missing.push('Confirmation du mot de passe')
+    if (missing.length) {
+      error.value = missingFieldsMessage(missing)
       return false
     }
     if (password.value !== confirmPassword.value) {
       error.value = 'Les mots de passe ne correspondent pas.'
+      return false
+    }
+    if (!acceptTerms.value) {
+      error.value = 'Vous devez accepter les conditions d\'utilisation.'
       return false
     }
   }
@@ -80,15 +98,12 @@ function validateStep(): boolean {
 }
 
 function nextStep() {
-  if (step.value === 0) {
-    step.value++
-    return
-  }
+  dismissKeyboard()
   if (!validateStep()) return
   if (step.value < steps.length - 1) {
     step.value++
   } else {
-    handleRegister()
+    void handleRegister()
   }
 }
 
@@ -97,26 +112,29 @@ function prevStep() {
   if (step.value > 0) step.value--
 }
 
+function selectRole(role: UserRole) {
+  intendedRole.value = role
+  error.value = ''
+}
+
 async function handleRegister() {
   if (!validateStep()) return
+  clearRoleIntent()
+  clearProfileSnapshot()
+  if (intendedRole.value) {
+    persistRegistrationRole(email.value, intendedRole.value)
+  }
   loading.value = true
 
-  const result = isTeacher.value
-    ? await auth.registerTeacher({
-        email: email.value,
-        password: password.value,
-        firstName: firstName.value,
-        lastName: lastName.value,
-        institution: institution.value || undefined,
-      })
-    : await auth.registerStudent({
-        email: email.value,
-        password: password.value,
-        firstName: firstName.value,
-        lastName: lastName.value,
-        studentId: studentId.value,
-        institution: institution.value || undefined,
-      })
+  const result = await auth.registerAccount({
+    email: email.value,
+    password: password.value,
+    confirmPassword: confirmPassword.value,
+    firstName: firstName.value,
+    lastName: lastName.value,
+    city: city.value,
+    phone: phoneE164.value,
+  })
 
   loading.value = false
 
@@ -125,7 +143,18 @@ async function handleRegister() {
     return
   }
 
-  router.push(isTeacher.value ? '/teacher' : '/student')
+  if (result.requiresVerification) {
+    persistPendingVerification(email.value)
+    persistPendingLoginCredentials(email.value, password.value)
+    useVerificationStore().setIdentifier(email.value)
+    await router.push({
+      path: '/verify-email',
+      query: { email: email.value },
+    })
+    return
+  }
+
+  await router.push('/onboarding/profile')
 }
 </script>
 
@@ -135,63 +164,88 @@ async function handleRegister() {
       <p class="label-caps mb-3">Inscription</p>
       <h1 class="font-display text-3xl text-ink tracking-tight">Créer votre compte</h1>
       <p class="mt-2 text-sm text-ink-muted leading-relaxed">
-        Étape {{ step + 1 }} sur {{ steps.length }} · {{ steps[step] }}
+        Étape {{ step + 1 }} sur {{ steps.length }} — {{ stepHint }}
       </p>
     </div>
 
     <AppStepper :steps="steps" :current="step" />
 
-    <AuthRoleTabs v-model="role" />
-
     <Transition name="step" mode="out-in">
       <div v-if="step === 0" key="0" class="space-y-4">
-        <p class="text-sm text-ink-muted">Choisissez le type de compte adapté à votre rôle.</p>
-        <div class="grid grid-cols-1 gap-3">
-          <button
-            type="button"
-            class="relative p-4 border text-left transition-all hover-lift"
-            :class="isTeacher ? 'border-accent bg-accent-light ring-1 ring-accent' : 'border-line bg-white hover:border-line-strong'"
-            @click="setRole('teacher')"
-          >
-            <Check v-if="isTeacher" class="absolute top-3 right-3 w-4 h-4 text-accent" />
-            <p class="text-sm font-semibold text-ink">Enseignant</p>
-            <p class="text-xs text-ink-muted mt-1">Créer et gérer des évaluations chronométrées</p>
-          </button>
-          <button
-            type="button"
-            class="relative p-4 border text-left transition-all hover-lift"
-            :class="!isTeacher ? 'border-accent bg-accent-light ring-1 ring-accent' : 'border-line bg-white hover:border-line-strong'"
-            @click="setRole('student')"
-          >
-            <Check v-if="!isTeacher" class="absolute top-3 right-3 w-4 h-4 text-accent" />
-            <p class="text-sm font-semibold text-ink">Étudiant</p>
-            <p class="text-xs text-ink-muted mt-1">Passer des évaluations avec contrôles anti-triche</p>
-          </button>
-        </div>
-      </div>
-
-      <div v-else-if="step === 1" key="1" class="space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <AppInput v-model="firstName" label="Prénom" placeholder="Emy" required autocomplete="given-name" />
           <AppInput v-model="lastName" label="Nom" placeholder="Mayumbi" required autocomplete="family-name" />
         </div>
         <AppInput v-model="email" label="Adresse e-mail" type="email" placeholder="emy.mayumbi@ucc.cd" required autocomplete="email" />
-        <AppInput v-if="!isTeacher" v-model="studentId" label="N° étudiant / identifiant" placeholder="UCC2024001" required />
-        <AppSelect
-          v-model="institution"
-          label="Établissement"
-          :options="INSTITUTIONS_CONGO"
-          grouped
-          hint="Partenariat UCC : seule l'Université Catholique du Congo est disponible pour l'instant."
-          @update:model-value="(v) => { if (!isInstitutionSelectable(v)) institution = DEFAULT_UNIVERSITY }"
+        <AppPhoneInput
+          v-model="phoneE164"
+          label="Téléphone mobile"
+          required
+          default-country="CD"
+        />
+        <AppCombobox
+          v-model="city"
+          label="Ville"
+          :options="CITIES_CONGO"
+          placeholder="Kinshasa ou autre ville…"
+          required
+          autocomplete="address-level2"
         />
       </div>
 
+      <div v-else-if="step === 1" key="1" class="space-y-3">
+        <button
+          type="button"
+          class="flex w-full cursor-pointer items-start gap-4 p-5 border text-left transition-colors"
+          :class="intendedRole === 'teacher' ? 'border-accent bg-accent-light/40' : 'border-line hover:bg-paper-warm'"
+          @click="selectRole('teacher')"
+        >
+          <span class="mt-0.5 flex h-10 w-10 items-center justify-center bg-accent text-white">
+            <GraduationCap class="w-5 h-5" />
+          </span>
+          <span class="min-w-0">
+            <span class="block font-display text-lg text-ink">Je suis enseignant</span>
+            <span class="mt-1 block text-sm text-ink-muted">Cours, évaluations et suivi des étudiants.</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          class="flex w-full cursor-pointer items-start gap-4 p-5 border text-left transition-colors"
+          :class="intendedRole === 'student' ? 'border-accent bg-accent-light/40' : 'border-line hover:bg-paper-warm'"
+          @click="selectRole('student')"
+        >
+          <span class="mt-0.5 flex h-10 w-10 items-center justify-center bg-ink text-white">
+            <BookOpen class="w-5 h-5" />
+          </span>
+          <span class="min-w-0">
+            <span class="block font-display text-lg text-ink">Je suis étudiant</span>
+            <span class="mt-1 block text-sm text-ink-muted">Rejoindre les groupes, examens et présences.</span>
+          </span>
+        </button>
+      </div>
+
       <div v-else key="2" class="space-y-4">
-        <AppInput v-model="password" label="Mot de passe" type="password" placeholder="8 caractères minimum" hint="Lettres et chiffres requis" required autocomplete="new-password" />
-        <AppInput v-model="confirmPassword" label="Confirmer le mot de passe" type="password" placeholder="••••••••" required autocomplete="new-password" />
+        <AppInput
+          v-model="password"
+          label="Mot de passe"
+          type="password"
+          placeholder="8 caractères minimum"
+          hint="Lettres et chiffres requis"
+          required
+          autocomplete="new-password"
+          :show-password-toggle="true"
+        />
+        <AppInput
+          v-model="confirmPassword"
+          label="Confirmer le mot de passe"
+          type="password"
+          placeholder="••••••••"
+          required
+          autocomplete="new-password"
+          :show-password-toggle="true"
+        />
         <label class="flex items-start gap-3 cursor-pointer pt-1">
-          <input v-model="acceptTerms" type="checkbox" class="mt-0.5 w-4 h-4 border-line text-accent focus:ring-accent" />
+          <input v-model="acceptTerms" type="checkbox" class="mt-0.5 w-4 h-4 border-line text-accent focus:ring-accent cursor-pointer" />
           <span class="text-xs text-ink-muted leading-relaxed">
             J'accepte les conditions d'utilisation et la politique de confidentialité de LawApp.
           </span>
@@ -215,7 +269,7 @@ async function handleRegister() {
           <ChevronRight class="w-4 h-4" />
         </template>
         <template v-else>
-          Créer mon compte {{ ROLE_LABELS[role].toLowerCase() }}
+          Créer mon compte
         </template>
       </AppButton>
     </div>
@@ -223,7 +277,7 @@ async function handleRegister() {
     <p class="mt-8 text-center text-sm text-ink-muted">
       Déjà inscrit ?
       <RouterLink
-        :to="{ path: '/login', query: { role } }"
+        to="/login"
         class="text-accent font-medium hover:text-accent-hover underline underline-offset-4 decoration-accent/30"
       >
         Se connecter

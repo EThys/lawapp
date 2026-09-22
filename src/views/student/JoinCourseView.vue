@@ -151,7 +151,7 @@ onMounted(() => {
           </div>
           <div>
             <dt class="text-ink-faint text-xs uppercase tracking-wide">Établissement</dt>
-            <dd class="font-medium text-ink">{{ profile.institution || '—' }}</dd>
+            <dd class="font-medium text-ink">{{ profile.institution || '-' }}</dd>
           </div>
         </dl>
 

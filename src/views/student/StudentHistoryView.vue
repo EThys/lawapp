@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useEvaluationStore } from '@/stores/evaluations'
@@ -7,6 +7,12 @@ import { useCourseStore } from '@/stores/courses'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
+import DashboardPage from '@/components/layout/DashboardPage.vue'
+import AppShimmerList from '@/components/loading/AppShimmerList.vue'
+import { useServerShimmer } from '@/composables/useServerShimmer'
+import { isApiEnabled } from '@/config/features'
+import { parseApiEvaluationId, studentResultPath } from '@/utils/evaluationApiMapper'
+import { appToast } from '@/utils/toast'
 import AttendanceListPanel from '@/components/attendance/AttendanceListPanel.vue'
 import AppDataTable from '@/components/ui/AppDataTable.vue'
 import HistoryFilterBar from '@/components/history/HistoryFilterBar.vue'
@@ -53,7 +59,27 @@ const evaluationFilter = ref('all')
 const selectedSessionId = ref<string | null>(null)
 
 watch(activeTab, (tab) => {
-  router.replace({ query: { ...route.query, tab } })
+  if (route.query.tab !== tab) {
+    router.replace({ query: { ...route.query, tab } })
+  }
+})
+
+watch(
+  () => route.query.tab,
+  (tab) => {
+    if (tab === 'passed' || tab === 'missed' || tab === 'alerts' || tab === 'presences') {
+      if (activeTab.value !== tab) activeTab.value = tab
+    }
+  },
+)
+
+const { showShimmer: historyShimmer } = useServerShimmer(
+  computed(() => evalStore.apiLoading),
+)
+
+onMounted(() => {
+  if (!isApiEnabled()) return
+  void evalStore.refreshMySubmissionsForStudent()
 })
 
 const studentId = computed(() => auth.currentUser?.id ?? '')
@@ -87,15 +113,40 @@ const sharedEvaluations = computed(() =>
 
 const myCoursesForEval = computed(() => myCourses.value)
 
+function registerEvaluationKeys(map: Map<string, Evaluation>, ev: Evaluation) {
+  map.set(ev.id, ev)
+  map.set(ev.code.toUpperCase(), ev)
+  if (ev.apiId != null) map.set(String(ev.apiId), ev)
+}
+
 const evaluationById = computed(() => {
   const map = new Map<string, Evaluation>()
-  for (const s of mySessions.value) {
-    const ev = evalStore.getById(s.evaluationId)
-    if (ev) map.set(ev.id, ev)
-  }
-  for (const ev of sharedEvaluations.value) map.set(ev.id, ev)
+  for (const ev of evalStore.evaluations) registerEvaluationKeys(map, ev)
+  for (const ev of sharedEvaluations.value) registerEvaluationKeys(map, ev)
   return map
 })
+
+function evaluationTitleForSession(session: ExamSession): string {
+  return (
+    evaluationById.value.get(session.evaluationId)?.title ??
+    evaluationById.value.get(session.evaluationCode.toUpperCase())?.title ??
+    (session.apiEvaluationId != null
+      ? evaluationById.value.get(String(session.apiEvaluationId))?.title
+      : undefined) ??
+    session.evaluationCode
+  )
+}
+
+function resolveEvaluationForSession(session: ExamSession): Evaluation | undefined {
+  return (
+    evaluationById.value.get(session.evaluationId) ??
+    evaluationById.value.get(session.evaluationCode.toUpperCase()) ??
+    (session.apiEvaluationId != null
+      ? evaluationById.value.get(String(session.apiEvaluationId))
+      : undefined) ??
+    evalStore.getByCode(session.evaluationCode)
+  )
+}
 
 const passedSessions = computed(() =>
   mySessions.value.filter((s) => s.status === 'submitted')
@@ -186,6 +237,7 @@ const passedColumns = [
   { key: 'date', label: 'Date' },
   { key: 'score', label: 'Score', class: 'tabular-nums' },
   { key: 'status', label: 'Statut' },
+  { key: 'actions', label: '', class: 'text-right whitespace-nowrap' },
 ]
 
 const missedColumns = [
@@ -206,10 +258,11 @@ const passedTableRows = computed(() =>
   filteredPassed.value.map((s) => ({
     id: s.id,
     session: s,
-    title: evaluationById.value.get(s.evaluationId)?.title ?? s.evaluationCode,
+    title: evaluationTitleForSession(s),
     date: s.submittedAt ? formatDate(s.submittedAt) : formatDate(s.startedAt),
-    score: s.score !== undefined ? `${s.score}/${s.maxScore}` : '—',
+    score: s.score !== undefined ? `${s.score}/${s.maxScore ?? '—'}` : '-',
     status: SESSION_STATUS_LABELS[s.status],
+    resultPath: studentResultPath(s),
   }))
 )
 
@@ -277,7 +330,7 @@ const selectedSession = computed(() =>
 )
 
 const selectedEvaluation = computed(() =>
-  selectedSession.value ? evalStore.getById(selectedSession.value.evaluationId) : undefined
+  selectedSession.value ? resolveEvaluationForSession(selectedSession.value) : undefined,
 )
 
 function statusVariant(status: SessionStatus) {
@@ -296,8 +349,24 @@ function openMissedRow(row: Record<string, unknown>) {
   if (item.session) openSession(item.session)
 }
 
-function openSession(session: ExamSession) {
+function goToSubmissionResult(session: ExamSession) {
+  void router.push(studentResultPath(session))
+}
+
+async function openSession(session: ExamSession) {
+  if (session.status === 'submitted') {
+    goToSubmissionResult(session)
+    return
+  }
   selectedSessionId.value = session.id
+  if (!isApiEnabled()) return
+  const apiId =
+    session.apiEvaluationId ??
+    parseApiEvaluationId(session.evaluationId) ??
+    parseApiEvaluationId(session.evaluationCode)
+  if (apiId != null && session.apiSubmissionId != null) {
+    await evalStore.loadMySubmission(apiId, session.id, { force: true })
+  }
 }
 
 function closeSession() {
@@ -312,7 +381,7 @@ function exportRows(): string[][] {
         r.type === 'present' ? 'Présent' : 'Absent',
         r.courseName,
         r.date,
-        r.type === 'present' && r.detail ? formatDate(r.detail) : '—',
+        r.type === 'present' && r.detail ? formatDate(r.detail) : '-',
       ]),
     ]
   }
@@ -343,9 +412,9 @@ function exportRows(): string[][] {
     ...sessions.map((s) => [
       evaluationById.value.get(s.evaluationId)?.title ?? s.evaluationCode,
       SESSION_STATUS_LABELS[s.status],
-      s.score !== undefined ? `${s.score}/${s.maxScore}` : '—',
+      s.score !== undefined ? `${s.score}/${s.maxScore}` : '-',
       String(s.violations.length),
-      s.violations.map((v) => `${VIOLATION_TYPE_LABELS[v.type]}: ${v.message}`).join(' · ') || '—',
+      s.violations.map((v) => `${VIOLATION_TYPE_LABELS[v.type]}: ${v.message}`).join(' · ') || '-',
       s.submittedAt ? formatDate(s.submittedAt) : formatDate(s.startedAt),
     ]),
   ]
@@ -354,16 +423,18 @@ function exportRows(): string[][] {
 function exportExcel() {
   const title = tabs.find((t) => t.id === activeTab.value)?.label ?? 'Historique'
   downloadExcel(exportRows(), `lawapp-etudiant-${activeTab.value}.xlsx`, title)
+  appToast.success('Export Excel téléchargé.')
 }
 
 function exportPdf() {
   const title = `LawApp · ${tabs.find((t) => t.id === activeTab.value)?.label ?? 'Historique'}`
   downloadPdf(title, exportRows(), `lawapp-etudiant-${activeTab.value}.pdf`)
+  appToast.success('Export PDF téléchargé.')
 }
 </script>
 
 <template>
-  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
+  <DashboardPage>
     <RouterLink
       to="/student"
       class="inline-flex items-center gap-2 text-sm text-ink-muted hover:text-ink mb-6 transition-colors min-h-11"
@@ -423,9 +494,11 @@ function exportPdf() {
       search-placeholder="Rechercher une évaluation…"
     />
 
+    <AppShimmerList v-if="historyShimmer && activeTab !== 'presences'" variant="row" :count="5" />
+
     <!-- Évaluations passées -->
     <AppCard
-      v-if="activeTab === 'passed'"
+      v-if="!historyShimmer && activeTab === 'passed'"
       title="Évaluations passées"
       :subtitle="`${filteredPassed.length} soumission(s)`"
     >
@@ -434,17 +507,26 @@ function exportPdf() {
         :rows="passedTableRows"
         empty-message="Aucune évaluation soumise pour le moment."
         clickable
-        @row-click="(row) => openSession((row as { session: ExamSession }).session)"
+        @row-click="(row) => goToSubmissionResult((row as { session: ExamSession }).session)"
       >
         <template #cell-status="{ row }">
           <AppBadge variant="success">{{ row.status }}</AppBadge>
+        </template>
+        <template #cell-actions="{ row }">
+          <AppButton
+            variant="outline"
+            size="sm"
+            @click.stop="goToSubmissionResult((row as { session: ExamSession }).session)"
+          >
+            Voir le détail
+          </AppButton>
         </template>
       </AppDataTable>
     </AppCard>
 
     <!-- Manquées -->
     <AppCard
-      v-if="activeTab === 'missed'"
+      v-if="!historyShimmer && activeTab === 'missed'"
       title="Évaluations manquées"
       :subtitle="`${filteredMissed.length} entrée(s)`"
     >
@@ -463,7 +545,7 @@ function exportPdf() {
 
     <!-- Alertes triche -->
     <AppCard
-      v-if="activeTab === 'alerts'"
+      v-if="!historyShimmer && activeTab === 'alerts'"
       title="Alertes & triche"
       :subtitle="`${filteredAlerts.length} session(s) avec incident`"
     >
@@ -619,7 +701,7 @@ function exportPdf() {
           <div class="flex-shrink-0 px-5 py-4 border-t border-line bg-paper/50 pb-safe flex flex-wrap gap-2">
             <RouterLink
               v-if="selectedSession.status === 'submitted'"
-              :to="`/exam/${selectedSession.id}/result`"
+              :to="studentResultPath(selectedSession)"
               @click="closeSession"
             >
               <AppButton variant="outline">Voir le résultat complet</AppButton>
@@ -629,5 +711,5 @@ function exportPdf() {
         </div>
       </div>
     </Teleport>
-  </div>
+  </DashboardPage>
 </template>

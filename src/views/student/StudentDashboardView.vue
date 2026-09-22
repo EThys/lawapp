@@ -13,10 +13,16 @@ import AppStatCard from '@/components/ui/AppStatCard.vue'
 import DashboardPage from '@/components/layout/DashboardPage.vue'
 import DashboardSection from '@/components/layout/DashboardSection.vue'
 import { EVALUATION_TYPE_LABELS } from '@/types'
-import { formatDate, getEvaluationAvailabilityMessage, isEvaluationAvailable, downloadDataUrl } from '@/utils/helpers'
+import { formatEvaluationPeriod, formatDate, formatMinutes, downloadDataUrl } from '@/utils/helpers'
 import { Download } from '@lucide/vue'
-import { getEvaluationAccessDeniedReason, getTodayDateString } from '@/utils/access'
-import { ArrowRight, AlertCircle, ClipboardList, CalendarClock, BookOpen, Target, UserCheck, Users, Radio, Bell, Share2, History, ShieldAlert, UserX, CalendarCheck } from '@lucide/vue'
+import { getEvaluationJoinBlockReason, evaluationAvailabilityLabel, getTodayDateString } from '@/utils/access'
+import { isApiEnabled } from '@/config/features'
+import { parseApiEvaluationId, studentResultPath } from '@/utils/evaluationApiMapper'
+import { useServerShimmer } from '@/composables/useServerShimmer'
+import AppShimmerList from '@/components/loading/AppShimmerList.vue'
+import AppShimmerStats from '@/components/loading/AppShimmerStats.vue'
+import { appToast } from '@/utils/toast'
+import { ArrowRight, AlertCircle, ClipboardList, CalendarClock, BookOpen, Target, UserCheck, Users, Radio, Bell, Share2, History, ShieldAlert, UserX, CalendarCheck, RefreshCw } from '@lucide/vue'
 import type { Evaluation } from '@/types'
 
 const route = useRoute()
@@ -55,14 +61,21 @@ const sharedEvaluations = computed(() =>
   auth.currentUser ? evalStore.getSharedEvaluationsForStudent(auth.currentUser.id) : []
 )
 
-const sharedClassLinks = computed(() =>
-  myCourses.value.filter((c) => c.enrollmentSharedAt)
+const catalogEvaluations = computed(() =>
+  evalStore.getCatalogEvaluationsForStudent(),
+)
+
+const { showShimmer: catalogShimmer } = useServerShimmer(computed(() => evalStore.apiLoading))
+
+const codeProtectedEvaluations = computed(() =>
+  auth.currentUser ? evalStore.getCodeProtectedEvaluationsForStudent(auth.currentUser.id) : [],
 )
 
 const hasSharedContent = computed(
   () =>
     sharedPresence.value.length > 0 ||
     sharedEvaluations.value.length > 0 ||
+    codeProtectedEvaluations.value.length > 0 ||
     sharedClassLinks.value.length > 0
 )
 
@@ -110,59 +123,107 @@ const stats = computed(() => {
   }
 })
 
-function lookupCode() {
+const sharedClassLinks = computed(() =>
+  myCourses.value.filter((c) => c.enrollmentSharedAt)
+)
+
+function evaluationBlockReason(evaluation: Evaluation): string | null {
+  if (!auth.currentUser) return 'Connectez-vous pour commencer.'
+  return getEvaluationJoinBlockReason(evaluation, auth.currentUser.id, courseStore)
+}
+
+function availabilityBadge(evaluation: Evaluation): { label: string; variant: 'success' | 'warning' | 'muted' } {
+  const state = evaluationAvailabilityLabel(evaluation)
+  if (state === 'open') return { label: 'Ouverte', variant: 'success' }
+  if (state === 'upcoming') return { label: 'Bientôt', variant: 'warning' }
+  return { label: 'Terminée', variant: 'muted' }
+}
+
+function reportStudentIssue(message: string, kind: 'error' | 'schedule' = 'error') {
+  if (kind === 'schedule') {
+    scheduleMessage.value = message
+    appToast.warning(message)
+    return
+  }
+  error.value = message
+  appToast.error(message)
+}
+
+async function refreshCatalog() {
+  if (!isApiEnabled()) return
+  await evalStore.syncStudentCatalog()
+  if (evalStore.apiError) {
+    appToast.error(evalStore.apiError)
+  } else {
+    appToast.success('Catalogue actualisé.')
+  }
+}
+
+async function lookupCode() {
   error.value = ''
   scheduleMessage.value = ''
   foundEvaluation.value = null
 
   if (!code.value.trim()) {
-    error.value = 'Veuillez entrer un code.'
+    reportStudentIssue('Veuillez entrer un code.')
     return
   }
 
-  const evaluation = evalStore.getByCode(code.value.trim())
-  if (!evaluation) {
-    error.value = 'Code invalide. Vérifiez auprès de votre enseignant.'
-    return
-  }
-  if (evaluation.status === 'draft') {
-    error.value = 'Cette évaluation n\'est pas encore publiée.'
-    return
-  }
-  if (evaluation.status === 'closed') {
-    error.value = 'Cette évaluation est fermée.'
-    return
-  }
-
-  const availabilityMsg = getEvaluationAvailabilityMessage({
-    availableFrom: evaluation.availableFrom ?? null,
-    availableUntil: evaluation.availableUntil ?? null,
-    title: evaluation.title,
-  })
-  if (availabilityMsg) {
-    scheduleMessage.value = availabilityMsg
-    return
-  }
-
-  if (!isEvaluationAvailable(evaluation)) {
-    error.value = 'Cette évaluation n\'est pas accessible pour le moment.'
-    return
-  }
-
-  if (auth.currentUser) {
-    const accessDenied = getEvaluationAccessDeniedReason(evaluation, auth.currentUser.id, courseStore)
-    if (accessDenied) {
-      error.value = accessDenied
-      return
+  let evaluation = evalStore.getByCode(code.value.trim())
+  if (!evaluation && isApiEnabled()) {
+    const apiId = parseApiEvaluationId(code.value.trim())
+    if (apiId != null) {
+      evaluation = (await evalStore.resolveForStudentExam(code.value.trim())) ?? undefined
+    } else {
+      await evalStore.syncStudentCatalog()
+      evaluation = evalStore.getByCode(code.value.trim())
     }
+  }
+  if (!evaluation) {
+    reportStudentIssue('Code invalide. Vérifiez le code fourni par votre enseignant.')
+    return
+  }
+
+  if (!evaluation.requiresAccessCode && evaluation.isFromApi) {
+    reportStudentIssue('Cette évaluation est dans la liste ci-dessus : rejoignez-la directement sans code.')
+    return
+  }
+
+  if (!evaluation.requiresAccessCode && !evaluation.isFromApi) {
+    reportStudentIssue('Cette évaluation est accessible depuis votre espace, sans code.')
+    return
+  }
+
+  const blockReason = evaluationBlockReason(evaluation)
+  if (blockReason) {
+    reportStudentIssue(
+      blockReason,
+      blockReason.includes('sera disponible') || blockReason.includes('pas encore')
+        ? 'schedule'
+        : 'error',
+    )
+    return
   }
 
   foundEvaluation.value = evaluation
+  appToast.success('Évaluation trouvée. Vérifiez votre identité puis commencez.')
 }
 
-function startSharedEvaluation(evaluation: Evaluation) {
+function startEvaluation(evaluation: Evaluation) {
   error.value = ''
   scheduleMessage.value = ''
+
+  const blockReason = evaluationBlockReason(evaluation)
+  if (blockReason) {
+    reportStudentIssue(
+      blockReason,
+      blockReason.includes('sera disponible') || blockReason.includes('pas encore')
+        ? 'schedule'
+        : 'error',
+    )
+    return
+  }
+
   foundEvaluation.value = evaluation
   void joinEvaluation()
 }
@@ -173,11 +234,11 @@ function openSharedPresence(shareCode: string) {
 
 async function joinEvaluation() {
   if (!foundEvaluation.value) {
-    error.value = 'Évaluation introuvable.'
+    reportStudentIssue('Évaluation introuvable.')
     return
   }
   if (!auth.currentUser || !profile.value) {
-    error.value = 'Connectez-vous pour commencer l\'évaluation.'
+    reportStudentIssue('Connectez-vous pour commencer l\'évaluation.')
     return
   }
 
@@ -185,15 +246,17 @@ async function joinEvaluation() {
   const user = auth.currentUser
   const studentId = profile.value.studentId
 
-  const accessDenied = getEvaluationAccessDeniedReason(foundEvaluation.value, user.id, courseStore)
+  const accessDenied = auth.currentUser
+    ? getEvaluationJoinBlockReason(foundEvaluation.value, auth.currentUser.id, courseStore)
+    : 'Connectez-vous pour commencer.'
   if (accessDenied) {
-    error.value = accessDenied
+    reportStudentIssue(accessDenied)
     return
   }
 
   const attempts = evalStore.getStudentAttempts(foundEvaluation.value.id, studentId)
   if (attempts >= foundEvaluation.value.settings.maxAttempts) {
-    error.value = `Nombre maximum de tentatives atteint (${foundEvaluation.value.settings.maxAttempts}).`
+    reportStudentIssue(`Nombre maximum de tentatives atteint (${foundEvaluation.value.settings.maxAttempts}).`)
     return
   }
 
@@ -201,6 +264,18 @@ async function joinEvaluation() {
   if (existing) {
     await router.push(evalStore.getExamEntryPath(existing))
     return
+  }
+
+  if (foundEvaluation.value.apiId) {
+    const passageEval = await evalStore.loadPassageFromApi(foundEvaluation.value.apiId)
+    if (!passageEval || !passageEval.questions.length) {
+      reportStudentIssue(
+        evalStore.apiError ||
+          'Impossible de charger la feuille d\'évaluation. Réessayez ou contactez votre enseignant.',
+      )
+      return
+    }
+    foundEvaluation.value = passageEval
   }
 
   const session = evalStore.createSession({
@@ -278,18 +353,27 @@ function onClickOutsideNotifications(e: MouseEvent) {
 
 onMounted(() => {
   document.addEventListener('click', onClickOutsideNotifications)
+  if (isApiEnabled()) void evalStore.syncStudentCatalog()
   const paramCode = (route.query.code as string) || (route.params.code as string | undefined)
   if (paramCode) {
     code.value = paramCode.toUpperCase()
-    lookupCode()
+    void lookupCode()
   }
   presenceTimer = setInterval(() => {
     presenceTick.value++
   }, 1000)
+  document.addEventListener('visibilitychange', onVisibilityRefresh)
 })
+
+function onVisibilityRefresh() {
+  if (document.visibilityState === 'visible' && isApiEnabled()) {
+    void evalStore.syncStudentCatalog()
+  }
+}
 
 onUnmounted(() => {
   document.removeEventListener('click', onClickOutsideNotifications)
+  document.removeEventListener('visibilitychange', onVisibilityRefresh)
   if (presenceTimer) clearInterval(presenceTimer)
 })
 </script>
@@ -298,9 +382,9 @@ onUnmounted(() => {
   <DashboardPage>
     <DashboardSection spacing="loose">
       <div v-reveal="100" class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-6">
-        <div>
+        <div class="min-w-0 flex-1">
           <p class="label-caps mb-2">Espace étudiant</p>
-          <h1 class="font-display text-3xl text-ink tracking-tight">
+          <h1 class="font-display text-2xl sm:text-3xl text-ink tracking-tight break-words">
             Bonjour, {{ auth.currentUser?.firstName }}
           </h1>
           <p class="mt-1 text-sm text-ink-muted">
@@ -369,13 +453,77 @@ onUnmounted(() => {
     </DashboardSection>
 
     <DashboardSection>
+      <AppCard v-reveal="105" hover>
+        <div class="flex items-start justify-between gap-3 border-b border-line mb-4 sm:mb-5 pb-4">
+          <div class="min-w-0">
+            <h3 class="font-display text-ink text-lg">Évaluations disponibles</h3>
+            <p class="text-xs text-ink-faint mt-1">
+              {{ isApiEnabled() ? 'Du plus récent au plus ancien' : 'Évaluations ouvertes sur la plateforme' }}
+            </p>
+          </div>
+          <button
+            v-if="isApiEnabled()"
+            type="button"
+            class="shrink-0 inline-flex items-center justify-center w-9 h-9 min-h-9 border border-line bg-white text-ink-muted hover:text-ink hover:bg-paper-warm hover:border-line-strong transition-colors rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            :disabled="evalStore.apiLoading"
+            title="Actualiser"
+            aria-label="Actualiser la liste des évaluations"
+            @click="refreshCatalog"
+          >
+            <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': evalStore.apiLoading }" />
+          </button>
+        </div>
+        <AppShimmerList v-if="catalogShimmer" variant="eval" :count="4" />
+        <div v-else-if="catalogEvaluations.length === 0" class="text-sm text-ink-muted py-6 text-center">
+          Aucune évaluation disponible pour le moment.
+        </div>
+        <div v-else class="space-y-3">
+          <div
+            v-for="evaluation in catalogEvaluations"
+            :key="`catalog-${evaluation.id}`"
+            class="p-4 border border-line bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+          >
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <p class="text-sm font-medium text-ink">{{ evaluation.title }}</p>
+                <AppBadge :variant="availabilityBadge(evaluation).variant">
+                  {{ availabilityBadge(evaluation).label }}
+                </AppBadge>
+              </div>
+              <p class="text-xs text-ink-muted mt-1">
+                {{ formatEvaluationPeriod({
+                  availableFrom: evaluation.availableFrom,
+                  availableUntil: evaluation.availableUntil,
+                }) }}
+                <span v-if="evaluation.durationMinutes"> · {{ formatMinutes(evaluation.durationMinutes) }}</span>
+              </p>
+              <p v-if="evaluationBlockReason(evaluation) && availabilityBadge(evaluation).label !== 'Ouverte'" class="text-xs text-warning mt-2">
+                {{ evaluationBlockReason(evaluation) }}
+              </p>
+            </div>
+            <AppButton
+              size="sm"
+              class="w-full sm:w-auto shrink-0"
+              :disabled="availabilityBadge(evaluation).label !== 'Ouverte'"
+              @click="startEvaluation(evaluation)"
+            >
+              Commencer
+              <ArrowRight class="w-4 h-4" />
+            </AppButton>
+          </div>
+        </div>
+      </AppCard>
+    </DashboardSection>
+
+    <DashboardSection>
       <AppCard
         v-reveal="95"
         title="Mon historique"
         subtitle="Évaluations, alertes et présences"
         hover
       >
-        <div class="dashboard-tiles dashboard-tiles--4 mb-5">
+        <AppShimmerStats v-if="catalogShimmer" :count="4" :columns="4" class="mb-5" />
+        <div v-else class="dashboard-tiles dashboard-tiles--4 mb-5">
           <RouterLink
             to="/student/history?tab=passed"
             class="dashboard-tile hover:bg-accent-light/30"
@@ -459,13 +607,30 @@ onUnmounted(() => {
           <div class="flex items-center gap-4">
             <div>
               <p class="text-xs uppercase tracking-wide text-ink-faint mb-1">Code</p>
-              <p class="font-mono text-2xl font-bold text-accent tracking-widest">{{ tunnel.code }}</p>
+              <p class="font-mono text-xl sm:text-2xl font-bold text-accent tracking-widest break-all">{{ tunnel.code }}</p>
             </div>
           </div>
           <AppButton size="sm" @click="openSharedPresence(tunnel.shareCode)">
             Pointer ma présence
             <ArrowRight class="w-4 h-4" />
           </AppButton>
+        </div>
+
+        <div
+          v-for="evaluation in codeProtectedEvaluations"
+          :key="`code-${evaluation.id}`"
+          class="p-4 border border-line bg-white space-y-3"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-sm font-medium text-ink">{{ evaluation.title }}</p>
+              <p class="text-xs text-ink-muted mt-1">Accès par code requis</p>
+            </div>
+            <AppBadge variant="warning">Code requis</AppBadge>
+          </div>
+          <p class="text-xs text-ink-muted">
+            Saisissez le code <span class="font-mono font-semibold text-accent">{{ evaluation.code }}</span> dans le champ ci-dessous.
+          </p>
         </div>
 
         <div
@@ -477,16 +642,12 @@ onUnmounted(() => {
             <div>
               <p class="text-sm font-medium text-ink">{{ evaluation.title }}</p>
               <p class="text-xs text-ink-muted mt-1">
-                {{ EVALUATION_TYPE_LABELS[evaluation.type] }} · {{ evaluation.durationMinutes }} min
+                {{ EVALUATION_TYPE_LABELS[evaluation.type] }} · {{ formatMinutes(evaluation.durationMinutes) }}
               </p>
             </div>
             <AppBadge variant="success">Évaluation</AppBadge>
           </div>
-          <div>
-            <p class="text-xs uppercase tracking-wide text-ink-faint mb-1">Code d'accès</p>
-            <p class="font-mono text-2xl font-bold text-accent tracking-widest">{{ evaluation.code }}</p>
-          </div>
-          <AppButton size="sm" @click="startSharedEvaluation(evaluation)">
+          <AppButton size="sm" @click="startEvaluation(evaluation)">
             Commencer l'évaluation
             <ArrowRight class="w-4 h-4" />
           </AppButton>
@@ -502,7 +663,7 @@ onUnmounted(() => {
             Lien classe · {{ course.name }}
           </p>
           <p class="text-xs uppercase tracking-wide text-ink-faint">Code classe</p>
-          <p class="font-mono text-xl font-bold text-accent tracking-widest">{{ course.enrollmentCode }}</p>
+          <p class="font-mono text-lg sm:text-xl font-bold text-accent tracking-widest break-all">{{ course.enrollmentCode }}</p>
         </div>
       </div>
       </AppCard>
@@ -510,9 +671,12 @@ onUnmounted(() => {
 
     <DashboardSection spacing="loose">
       <div v-reveal class="dashboard-stats">
+      <AppShimmerStats v-if="catalogShimmer" :count="3" :columns="3" />
+      <template v-else>
       <AppStatCard :value="stats.total" label="Sessions" :icon="BookOpen" :delay="0" />
       <AppStatCard :value="stats.completed" label="Terminées" :icon="ClipboardList" :delay="1" />
       <AppStatCard :value="stats.average ?? 0" :label="stats.average !== null ? 'Moyenne' : 'Moyenne (n/a)'" suffix="%" :icon="Target" :delay="2" />
+      </template>
       </div>
     </DashboardSection>
 
@@ -578,13 +742,13 @@ onUnmounted(() => {
     <DashboardSection spacing="none">
       <div class="dashboard-two-col">
         <div class="dashboard-two-col__aside">
-          <AppCard v-reveal="150" title="Rejoindre une évaluation" hover>
+          <AppCard v-reveal="150" title="Accès par code privé" subtitle="Uniquement pour les évaluations verrouillées par le professeur" hover>
           <div class="space-y-4">
             <AppInput
               v-model="code"
               label="Code d'accès"
-              placeholder="ABC123"
-              hint="Code à 6 caractères fourni par l'enseignant"
+              placeholder="ABC123 ou EV4"
+              hint="Requis seulement si votre professeur a activé l'accès par code"
               @keyup.enter="lookupCode"
             />
             <AppButton class="w-full" @click="lookupCode">Vérifier</AppButton>
@@ -612,7 +776,7 @@ onUnmounted(() => {
                 <p class="font-medium text-ink">{{ foundEvaluation.title }}</p>
                 <p class="text-xs text-ink-muted mt-1">
                   {{ EVALUATION_TYPE_LABELS[foundEvaluation.type] }} ·
-                  {{ foundEvaluation.durationMinutes }} min
+                  {{ formatMinutes(foundEvaluation.durationMinutes) }}
                 </p>
                 <AppBadge v-if="foundEvaluation.presentOnly" variant="warning" class="mt-2">
                   Réservée aux présents
@@ -649,7 +813,8 @@ onUnmounted(() => {
 
         <div class="dashboard-two-col__main">
           <AppCard v-reveal="200" title="Historique" :subtitle="`${mySessions.length} session(s)`" hover>
-            <div v-if="mySessions.length === 0" class="text-center py-12 px-2">
+            <AppShimmerList v-if="catalogShimmer" variant="row" :count="4" />
+            <div v-else-if="mySessions.length === 0" class="text-center py-12 px-2">
               <ClipboardList class="w-10 h-10 text-ink-faint mx-auto mb-3" />
               <p class="text-sm text-ink-muted">Aucune évaluation passée pour le moment.</p>
             </div>
@@ -684,7 +849,7 @@ onUnmounted(() => {
                 </RouterLink>
                 <RouterLink
                   v-else
-                  :to="`/exam/${session.id}/result`"
+                  :to="studentResultPath(session)"
                   class="inline-flex items-center min-h-11 px-2 text-xs text-accent hover:text-accent-hover font-medium"
                 >
                   Détails

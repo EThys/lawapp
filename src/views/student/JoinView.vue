@@ -8,6 +8,8 @@ import AppInput from '@/components/ui/AppInput.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import { EVALUATION_TYPE_LABELS } from '@/types'
 import { KeyRound, ArrowRight, AlertCircle } from '@lucide/vue'
+import { formatMinutes } from '@/utils/helpers'
+import { dismissKeyboard, missingFieldsMessage } from '@/utils/form'
 
 const route = useRoute()
 const router = useRouter()
@@ -26,11 +28,12 @@ onMounted(() => {
 })
 
 function lookupCode() {
+  dismissKeyboard()
   error.value = ''
   foundEvaluation.value = null
 
   if (!code.value.trim()) {
-    error.value = 'Veuillez entrer un code.'
+    error.value = 'Le champ « Code d\'accès » est requis.'
     return
   }
 
@@ -59,11 +62,17 @@ const studentId = ref('')
 const joinError = ref('')
 
 async function joinEvaluation() {
+  dismissKeyboard()
   joinError.value = ''
 
   if (!foundEvaluation.value) return
-  if (!firstName.value.trim() || !lastName.value.trim() || !studentId.value.trim()) {
-    joinError.value = 'Tous les champs sont obligatoires.'
+
+  const missing: string[] = []
+  if (!lastName.value.trim()) missing.push('Nom')
+  if (!firstName.value.trim()) missing.push('Prénom')
+  if (!studentId.value.trim()) missing.push('Identifiant / N° étudiant')
+  if (missing.length) {
+    joinError.value = missingFieldsMessage(missing)
     return
   }
 
@@ -134,7 +143,7 @@ async function joinEvaluation() {
             <AppBadge variant="brand">{{ EVALUATION_TYPE_LABELS[foundEvaluation.type] }}</AppBadge>
           </div>
           <p class="text-sm text-surface-500">
-            {{ foundEvaluation.subject }} · {{ foundEvaluation.durationMinutes }} min ·
+            {{ foundEvaluation.subject }} · {{ formatMinutes(foundEvaluation.durationMinutes) }} ·
             {{ foundEvaluation.questions.length }} question(s)
           </p>
           <p class="text-sm text-surface-600 mt-2">Par {{ foundEvaluation.teacherName }}</p>

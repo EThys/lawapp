@@ -1,6 +1,6 @@
 <script setup lang="ts">
 
-import { computed, watch } from 'vue'
+import { computed, watch, onMounted } from 'vue'
 
 import { RouterLink } from 'vue-router'
 
@@ -8,7 +8,11 @@ import { useEvaluationStore } from '@/stores/evaluations'
 
 import { useAuthStore } from '@/stores/auth'
 
+import { useTeacherStore } from '@/stores/teachers'
+
 import { useCourseStore } from '@/stores/courses'
+
+import { useClassroomStore } from '@/stores/classrooms'
 
 import AppButton from '@/components/ui/AppButton.vue'
 
@@ -18,7 +22,6 @@ import AppCard from '@/components/ui/AppCard.vue'
 
 import AppStatCard from '@/components/ui/AppStatCard.vue'
 
-import AppEmptyState from '@/components/ui/AppEmptyState.vue'
 
 import DashboardPage from '@/components/layout/DashboardPage.vue'
 
@@ -30,13 +33,14 @@ import PresenceSessionPanel from '@/components/teacher/PresenceSessionPanel.vue'
 
 import { useTeacherAttendanceCalendar } from '@/composables/useTeacherAttendanceCalendar'
 
-import { EVALUATION_TYPE_LABELS, type EvaluationStatus } from '@/types'
-
-import { formatDate, formatEvaluationPeriod } from '@/utils/helpers'
+import { formatDate } from '@/utils/helpers'
+import { isApiEnabled } from '@/config/features'
+import { useServerShimmer } from '@/composables/useServerShimmer'
+import AppShimmerStats from '@/components/loading/AppShimmerStats.vue'
 
 import { getGroupShareUrl } from '@/utils/access'
 
-import { Plus, ClipboardList, Trash2, Eye, Clock, Users, Copy, Check, Radio, Link, Share2, History, ShieldAlert, CheckCircle, CalendarCheck } from '@lucide/vue'
+import { ClipboardList, Clock, Users, Copy, Check, Radio, Link, Share2, ShieldAlert, CheckCircle, CalendarCheck, Plus } from '@lucide/vue'
 
 import { ref } from 'vue'
 
@@ -46,7 +50,10 @@ const store = useEvaluationStore()
 
 const auth = useAuthStore()
 
+const teacherStore = useTeacherStore()
+
 const courseStore = useCourseStore()
+const classroomStore = useClassroomStore()
 
 
 
@@ -68,6 +75,24 @@ const presenceCourseFilter = ref('all')
 
 const teacherId = computed(() => auth.currentUser?.id ?? '')
 
+/** Afficher le bandeau seulement si la qualité enseignant n’est vraiment pas acquise. */
+const needsTeacherProfile = computed(() => {
+  if (!isApiEnabled()) return false
+  const u = auth.currentUser
+  if (u?.hasTeacherProfile || u?.teacherProfileId) return false
+  if (auth.teacherProfile?.teacherId) return false
+  if (teacherStore.myProfile?.teacherId) return false
+  return true
+})
+
+onMounted(() => {
+  if (isApiEnabled()) void teacherStore.loadMyProfile()
+  if (isApiEnabled()) void store.syncFromApi()
+  if (isApiEnabled()) void classroomStore.syncMine()
+})
+
+const { showShimmer: evaluationsShimmer } = useServerShimmer(computed(() => store.apiLoading))
+
 const teacherAttendanceRecords = computed(() =>
   teacherId.value ? courseStore.getAttendanceHistoryForTeacher(teacherId.value) : []
 )
@@ -86,13 +111,13 @@ const {
 })
 
 const myClass = computed(() => {
-
   if (!auth.currentUser) return null
-
+  if (isApiEnabled()) {
+    const api = classroomStore.myClassrooms[0]
+    return api ? classroomStore.getMappedCourse(api.id) : null
+  }
   const courses = courseStore.getCoursesForTeacher(auth.currentUser.id)
-
   return courses[0] ?? null
-
 })
 
 watch(
@@ -108,12 +133,8 @@ watch(
 
 
 const myEvaluations = computed(() =>
-
-  auth.currentUser ? store.getEvaluationsForTeacher(auth.currentUser.id) : []
-
+  auth.currentUser ? store.getTeacherEvaluationsSorted(auth.currentUser.id) : [],
 )
-
-
 
 const stats = computed(() => {
 
@@ -138,46 +159,6 @@ const stats = computed(() => {
   }
 
 })
-
-
-
-function statusVariant(status: EvaluationStatus) {
-
-  const map = { draft: 'muted' as const, active: 'success' as const, closed: 'danger' as const }
-
-  return map[status]
-
-}
-
-
-
-function statusLabel(status: EvaluationStatus) {
-
-  const map = { draft: 'Brouillon', active: 'Active', closed: 'Fermée' }
-
-  return map[status]
-
-}
-
-
-
-function isScheduled(evaluation: { availableFrom?: string | null; availableUntil?: string | null }) {
-
-  return !!(evaluation.availableFrom || evaluation.availableUntil)
-
-}
-
-
-
-function deleteEval(id: string) {
-
-  if (confirm('Supprimer cette évaluation et toutes ses sessions ?')) {
-
-    store.deleteEvaluation(id)
-
-  }
-
-}
 
 
 
@@ -295,67 +276,36 @@ function shareClassLink() {
 
     <DashboardSection spacing="loose">
 
-    <div v-reveal class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+    <AppCard
+      v-if="needsTeacherProfile"
+      v-reveal="98"
+      class="mb-6 p-4 border-warning/30 bg-warning-bg/40"
+    >
+      <p class="text-sm text-ink">
+        Complétez votre <strong>profil enseignant</strong> pour publier des évaluations sur le serveur.
+      </p>
+      <RouterLink to="/teacher/profile" class="inline-block mt-3">
+        <AppButton size="sm">Configurer mon profil</AppButton>
+      </RouterLink>
+    </AppCard>
 
-      <div>
+    <div v-reveal class="min-w-0">
 
-        <p class="label-caps mb-2">Espace enseignant</p>
+      <p class="label-caps mb-2">Espace enseignant</p>
 
-        <h1 class="font-display text-3xl text-ink tracking-tight">
+      <h1 class="font-display text-2xl sm:text-3xl text-ink tracking-tight break-words">
 
-          Bonjour, {{ auth.currentUser?.firstName }}
+        Bonjour, {{ auth.currentUser?.firstName }}
 
-        </h1>
+      </h1>
 
-        <p class="mt-1 text-sm text-ink-muted">
+      <p class="mt-1 text-sm text-ink-muted">
 
-          {{ auth.currentUser?.institution || auth.currentUser?.email }}
+        {{ auth.currentUser?.institution || auth.currentUser?.email }}
 
-          <span v-if="myClass" class="text-ink-faint"> · {{ myClass.name }}</span>
+        <span v-if="myClass" class="text-ink-faint"> · {{ myClass.name }}</span>
 
-        </p>
-
-      </div>
-
-      <div class="flex flex-wrap gap-2">
-
-        <RouterLink v-if="myClass" :to="`/teacher/courses/${myClass.id}`">
-
-          <AppButton variant="outline" class="hover-lift">
-
-            <Users class="w-4 h-4" />
-
-            Ma salle
-
-          </AppButton>
-
-        </RouterLink>
-
-        <RouterLink to="/teacher/history">
-
-          <AppButton variant="outline" class="hover-lift">
-
-            <History class="w-4 h-4" />
-
-            Suivi & historique
-
-          </AppButton>
-
-        </RouterLink>
-
-        <RouterLink to="/teacher/create">
-
-          <AppButton class="hover-lift animate-fade-up stagger-3">
-
-            <Plus class="w-4 h-4" />
-
-            Nouvelle évaluation
-
-          </AppButton>
-
-        </RouterLink>
-
-      </div>
+      </p>
 
     </div>
 
@@ -367,11 +317,21 @@ function shareClassLink() {
 
     <div v-reveal="100" class="dashboard-stats">
 
-      <AppStatCard :value="stats.total" label="Évaluations" :icon="ClipboardList" :delay="0" />
+      <AppShimmerStats v-if="evaluationsShimmer" :count="3" :columns="3" />
+
+      <template v-else>
+
+      <RouterLink to="/teacher/evaluations" class="block min-w-0">
+        <AppStatCard :value="stats.total" label="Évaluations" :icon="ClipboardList" :delay="0" />
+      </RouterLink>
 
       <AppStatCard :value="stats.active" label="Actives" :icon="Clock" :delay="1" />
 
-      <AppStatCard :value="stats.sessions" label="Sessions" :icon="Radio" :delay="2" />
+      <RouterLink to="/teacher/submissions" class="block min-w-0">
+        <AppStatCard :value="stats.sessions" label="Soumissions" :icon="Radio" :delay="2" />
+      </RouterLink>
+
+      </template>
 
     </div>
 
@@ -393,9 +353,25 @@ function shareClassLink() {
 
     >
 
-      <div class="dashboard-tiles mb-5">
+      <div class="dashboard-tiles dashboard-tiles--4 mb-5">
 
-        <RouterLink to="/teacher/history?tab=submitted" class="dashboard-tile hover:bg-accent-light/30 group">
+        <RouterLink to="/teacher/evaluations" class="dashboard-tile hover:bg-accent-light/30 group">
+
+          <div class="dashboard-tile__label">
+
+            <ClipboardList class="w-4 h-4 text-accent" />
+
+            <p class="dashboard-tile__caption">Évaluations</p>
+
+          </div>
+
+          <p class="dashboard-tile__value">{{ stats.total }}</p>
+
+          <p class="dashboard-tile__hint group-hover:text-accent">Voir la liste</p>
+
+        </RouterLink>
+
+        <RouterLink to="/teacher/submissions" class="dashboard-tile hover:bg-accent-light/30 group">
 
           <div class="dashboard-tile__label">
 
@@ -444,18 +420,6 @@ function shareClassLink() {
         </RouterLink>
 
       </div>
-
-      <RouterLink to="/teacher/history">
-
-        <AppButton variant="outline" size="sm">
-
-          <History class="w-4 h-4" />
-
-          Ouvrir le suivi complet
-
-        </AppButton>
-
-      </RouterLink>
 
     </AppCard>
 
@@ -649,131 +613,13 @@ function shareClassLink() {
 
     <DashboardSection>
 
-    <AppEmptyState
-
-      v-if="myEvaluations.length === 0"
-
-      v-reveal="200"
-
-      :icon="ClipboardList"
-
-      title="Aucune évaluation"
-
-      description="Créez votre première épreuve et partagez le code d'accès à vos étudiants. La salle de classe est optionnelle."
-
-      action-label="Créer une évaluation"
-
-      action-to="/teacher/create"
-
-    />
-
-
-
-    <div v-else v-reveal="150" class="card-inset-list border border-line bg-line">
-
-      <div
-
-        v-for="(evaluation, i) in myEvaluations"
-
-        :key="evaluation.id"
-
-        class="card-inset-list__item card-inset-list__item--hover bg-white transition-all duration-300 hover:bg-accent-light/20 group"
-
-        :style="{ animationDelay: `${i * 50}ms` }"
-
-      >
-
-        <div class="flex flex-col lg:flex-row lg:items-center gap-4">
-
-          <div class="flex-1 min-w-0">
-
-            <div class="flex items-center gap-2 flex-wrap mb-1">
-
-              <h3 class="font-medium text-ink truncate group-hover:text-accent transition-colors">{{ evaluation.title }}</h3>
-
-              <AppBadge :variant="statusVariant(evaluation.status)">
-
-                {{ statusLabel(evaluation.status) }}
-
-              </AppBadge>
-
-              <AppBadge variant="brand">
-
-                {{ EVALUATION_TYPE_LABELS[evaluation.type] }}
-
-              </AppBadge>
-
-              <AppBadge v-if="isScheduled(evaluation) || evaluation.availableUntil" variant="warning">
-
-                {{ formatEvaluationPeriod(evaluation) }}
-
-              </AppBadge>
-
-              <AppBadge v-if="!evaluation.courseId" variant="muted">Ouverte</AppBadge>
-
-            </div>
-
-            <p class="text-xs text-ink-muted">
-
-              {{ evaluation.subject }} · {{ evaluation.durationMinutes }} min ·
-
-              {{ evaluation.questions.length }} q.
-
-              <span v-if="evaluation.sharedToClassAt" class="font-mono font-semibold text-accent">· {{ evaluation.code }}</span>
-
-              <span v-else class="text-ink-faint">· Code non publié</span>
-
-            </p>
-
-            <p class="text-[11px] text-ink-faint mt-1">{{ formatDate(evaluation.createdAt) }}</p>
-
-          </div>
-
-
-
-          <div class="flex items-center gap-2 flex-shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
-
-            <RouterLink :to="`/teacher/evaluation/${evaluation.id}`">
-
-              <AppButton variant="outline" size="sm" class="hover-lift">
-
-                <Eye class="w-4 h-4" />
-
-                Détails
-
-              </AppButton>
-
-            </RouterLink>
-
-            <AppButton variant="ghost" size="sm" @click="deleteEval(evaluation.id)">
-
-              <Trash2 class="w-4 h-4 text-danger" />
-
-            </AppButton>
-
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
-
-
-
-    </DashboardSection>
-
-
-
-    <DashboardSection>
-
     <AppCard
 
       v-reveal="250"
 
       title="Salle de classe"
 
-      subtitle="Optionnel — présence et groupe d'étudiants"
+      subtitle="Optionnel - présence et groupe d'étudiants"
 
       :hover="false"
 
@@ -811,11 +657,17 @@ function shareClassLink() {
 
           </p>
 
-          <RouterLink :to="`/teacher/courses/${myClass.id}`">
-
-            <AppButton variant="outline" size="sm">Gérer la salle</AppButton>
-
-          </RouterLink>
+          <div class="flex flex-wrap gap-2">
+            <RouterLink to="/teacher/courses?create=1">
+              <AppButton variant="outline" size="sm">
+                <Plus class="w-4 h-4" />
+                Créer une salle
+              </AppButton>
+            </RouterLink>
+            <RouterLink :to="`/teacher/courses/${myClass.id}`">
+              <AppButton variant="outline" size="sm">Gérer la salle</AppButton>
+            </RouterLink>
+          </div>
 
         </div>
 
@@ -841,85 +693,44 @@ function shareClassLink() {
 
 
 
-            <div class="space-y-4">
-
+            <div class="space-y-3">
               <p class="text-sm font-medium text-ink">Lien classe</p>
 
-              <p class="text-sm text-ink-muted">
-
-                Générez un code pour que vos étudiants rejoignent la salle.
-
-              </p>
-
-
-
               <div v-if="!myClass.enrollmentPublishedAt">
-
                 <AppButton :disabled="generatingClass" variant="outline" size="sm" @click="generateClassLink">
-
                   <Link class="w-4 h-4" />
-
-                  {{ generatingClass ? 'Génération…' : 'Générer le lien classe' }}
-
+                  {{ generatingClass ? 'Génération…' : 'Générer le code' }}
                 </AppButton>
-
               </div>
 
-
-
               <template v-else>
-
-                <div class="p-4 bg-accent-light border border-accent/20">
-
-                  <p class="text-xs text-ink-muted uppercase tracking-wide mb-1">Code classe</p>
-
-                  <p class="font-mono text-2xl font-semibold text-accent tracking-widest">{{ myClass.enrollmentCode }}</p>
-
-                </div>
-
-                <div class="flex flex-wrap gap-2">
-
-                  <AppButton variant="outline" size="sm" @click="copyClassCode">
-
-                    <Check v-if="copiedClassCode" class="w-4 h-4 text-accent" />
-
-                    <Copy v-else class="w-4 h-4" />
-
-                    Copier le code
-
-                  </AppButton>
-
-                  <AppButton variant="outline" size="sm" @click="copyClassLink">
-
-                    <Check v-if="copiedClassLink" class="w-4 h-4 text-accent" />
-
-                    <Copy v-else class="w-4 h-4" />
-
-                    Copier le lien
-
-                  </AppButton>
-
-                  <AppButton
-
-                    size="sm"
-
-                    :disabled="sharingClass || !!myClass.enrollmentSharedAt"
-
-                    @click="shareClassLink"
-
+                <div class="flex flex-wrap items-center gap-2">
+                  <span
+                    class="inline-flex items-center px-2.5 py-1.5 bg-accent-light border border-accent/20 font-mono text-sm font-semibold text-accent tracking-wider"
                   >
-
-                    <Share2 class="w-4 h-4" />
-
-                    {{ myClass.enrollmentSharedAt ? 'Partagé à ma salle' : sharingClass ? 'Partage…' : 'Partager à ma salle' }}
-
+                    {{ myClass.enrollmentCode }}
+                  </span>
+                  <AppButton variant="outline" size="sm" class="!min-h-9 h-9" @click="copyClassCode">
+                    <Check v-if="copiedClassCode" class="w-4 h-4 text-accent" />
+                    <Copy v-else class="w-4 h-4" />
+                    Copier
                   </AppButton>
-
+                  <AppButton variant="outline" size="sm" class="!min-h-9 h-9" @click="copyClassLink">
+                    <Check v-if="copiedClassLink" class="w-4 h-4 text-accent" />
+                    <Copy v-else class="w-4 h-4" />
+                    Lien
+                  </AppButton>
+                  <AppButton
+                    size="sm"
+                    class="!min-h-9 h-9"
+                    :disabled="sharingClass || !!myClass.enrollmentSharedAt"
+                    @click="shareClassLink"
+                  >
+                    <Share2 class="w-4 h-4" />
+                    {{ myClass.enrollmentSharedAt ? 'Partagé' : sharingClass ? '…' : 'Partager' }}
+                  </AppButton>
                 </div>
-
               </template>
-
-
 
               <p v-if="classError" class="text-sm text-danger">{{ classError }}</p>
 
