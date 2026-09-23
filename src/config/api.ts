@@ -24,7 +24,9 @@ export function resolveApiBase(): string {
 
 /** Auth à la racine (`/auth/login`), pas sous `/api`. */
 export function resolveAuthBase(): string {
-  const env = (import.meta.env.VITE_AUTH_BASE as string | undefined)?.trim()
+  const env =
+    (import.meta.env.VITE_AUTH_BASE as string | undefined)?.trim() ||
+    (import.meta.env.VITE_AUTH_URL as string | undefined)?.trim()
   if (import.meta.env.PROD) {
     if (env?.startsWith('https://')) return env.replace(/\/+$/, '')
     return env ?? ''
@@ -32,8 +34,25 @@ export function resolveAuthBase(): string {
   return env ?? ''
 }
 
+/**
+ * Origine Spring en prod quand le front est sur un autre domaine
+ * (ex. front `lawapp50.com`, API `backend.lawapp50.com`).
+ */
+export function resolveBackendOrigin(): string | null {
+  const auth = resolveAuthBase()
+  if (auth.startsWith('https://')) return auth
+  const api = resolveApiBase()
+  if (api.startsWith('https://') && api.endsWith('/api')) {
+    return api.slice(0, -'/api'.length)
+  }
+  if (api.startsWith('https://')) return api.replace(/\/+$/, '')
+  return null
+}
+
 /** Quiz et enseignants : chemins `/{version}/…` sans préfixe `/api`. */
 export function resolveV1Base(): string {
+  const origin = resolveBackendOrigin()
+  if (origin) return `${origin}/v1`
   return '/v1'
 }
 
@@ -43,6 +62,8 @@ export function resolveV1Base(): string {
  */
 export function rootPath(relativePath: string): string {
   const p = relativePath.startsWith('/') ? relativePath : `/${relativePath}`
+  const origin = resolveBackendOrigin()
+  if (origin) return `${origin}${p}`
   return p
 }
 

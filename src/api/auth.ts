@@ -1,4 +1,5 @@
 import { authPost, apiPost, apiPut, apiDelete } from '@/api/http'
+import { resolveBackendOrigin } from '@/config/api'
 import type {
   BackendLoginResponse,
   BackendRegisterResponse,
@@ -64,6 +65,8 @@ export async function deleteAccountApi(): Promise<ApiMessageResponse> {
 
 /** Redirection OAuth Google (GET /api/auth/google). */
 export function getGoogleAuthRedirectUrl(): string {
+  const origin = resolveBackendOrigin()
+  if (origin) return `${origin}/api/auth/google`
   return '/api/auth/google'
 }
 
