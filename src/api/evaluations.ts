@@ -8,6 +8,7 @@ import type {
   EvaluationAnswerSubmitRequest,
   EvaluationSubmissionSummary,
   EvaluationSubmissionDetail,
+  EvaluationSubmissionAnswerDetail,
   GradeSubmissionRequest,
   ApiMessageResponse,
 } from '@/api/types'
@@ -313,7 +314,7 @@ function findSubmissionDetailNode(data: unknown, depth = 0): EvaluationSubmissio
   if (!data || typeof data !== 'object' || depth > 6) return null
   const obj = data as Record<string, unknown>
   if (typeof obj.submissionId === 'number') {
-    return normalizeSubmissionDetail(obj as EvaluationSubmissionDetail)
+    return normalizeSubmissionDetail(obj as unknown as EvaluationSubmissionDetail)
   }
   for (const key of ['submission', 'session', 'data', 'result']) {
     if (key in obj) {

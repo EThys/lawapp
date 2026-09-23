@@ -85,6 +85,15 @@ function wifiApiPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [vue(), tailwindcss(), wifiApiPlugin()],
+  build: {
+    chunkSizeWarningLimit: 600,
+    rolldownOptions: {
+      onLog(level, log, defaultHandler) {
+        if (log.code === 'INVALID_ANNOTATION') return
+        defaultHandler(level, log)
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

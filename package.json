@@ -15,7 +15,6 @@
     "@lucide/vue": "^1.17.0",
     "@vueuse/core": "^14.3.0",
     "axios": "^1.18.1",
-    "country-state-city": "^3.2.1",
     "fuse.js": "^7.5.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",

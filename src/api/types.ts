@@ -297,8 +297,6 @@ export interface EvaluationSubmissionAnswerDetail {
   optionCorrect?: boolean
   /** Variante renvoyée par certains builds backend. */
   isOptionCorrect?: boolean | null
-  /** Variante renvoyée par certains builds backend. */
-  isOptionCorrect?: boolean | null
   /** Cas pratique — consigne (Swagger passage / soumission). */
   promptTitle?: string
   promptFileContent?: string

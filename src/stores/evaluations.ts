@@ -983,12 +983,12 @@ export const useEvaluationStore = defineStore('evaluations', () => {
     sessionId: string,
     apiEvaluationId: number,
   ): Promise<ExamSession | null> {
-    let s = getSession(sessionId)
+    let s: ExamSession | null = getSession(sessionId) ?? null
     if (s) return s
 
     const parsed = parseSubmissionSessionId(sessionId)
     if (parsed) {
-      s = getSession(submissionSessionId(parsed.evaluationId, parsed.submissionId))
+      s = getSession(submissionSessionId(parsed.evaluationId, parsed.submissionId)) ?? null
       if (s) return s
     }
 

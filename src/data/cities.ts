@@ -1,12 +1,42 @@
-import { City } from 'country-state-city'
-
-/** Villes RDC via `country-state-city` (suggestions ; saisie libre toujours possible). */
-export const CITIES_CONGO: string[] = (() => {
-  const list = City.getCitiesOfCountry('CD') ?? []
-  const names = [...new Set(list.map((c) => c.name).filter(Boolean))]
-  names.sort((a, b) => a.localeCompare(b, 'fr'))
-  return names
-})()
+/**
+ * Principales villes RDC (suggestions combobox — saisie libre toujours possible).
+ * Liste statique pour éviter d’embarquer la base mondiale `country-state-city` (~8 Mo).
+ */
+export const CITIES_CONGO: string[] = [
+  'Bandundu',
+  'Beni',
+  'Boende',
+  'Boma',
+  'Bukavu',
+  'Bunia',
+  'Butembo',
+  'Gbadolite',
+  'Gemena',
+  'Goma',
+  'Ilebo',
+  'Inongo',
+  'Isiro',
+  'Kabinda',
+  'Kalemie',
+  'Kamina',
+  'Kananga',
+  'Kikwit',
+  'Kindu',
+  'Kinshasa',
+  'Kisangani',
+  'Kolwezi',
+  'Likasi',
+  'Lisala',
+  'Lubumbashi',
+  'Lusambo',
+  'Matadi',
+  'Mbandaka',
+  'Mbuji-Mayi',
+  'Mweka',
+  'Tshikapa',
+  'Uvira',
+  'Zongo',
+]
 
 export const DEFAULT_CITY = CITIES_CONGO.includes('Kinshasa') ? 'Kinshasa' : CITIES_CONGO[0] ?? ''
 

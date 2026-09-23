@@ -9,8 +9,6 @@ import {
 } from '@/utils/evaluationApiMapper'
 import { requestExamFullscreen } from '@/composables/useAntiCheat'
 import AppButton from '@/components/ui/AppButton.vue'
-import AppBadge from '@/components/ui/AppBadge.vue'
-import { EVALUATION_TYPE_LABELS } from '@/types'
 import { formatMinutes } from '@/utils/helpers'
 import {
   Shield,

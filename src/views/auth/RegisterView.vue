@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AuthLayout from '@/components/layout/AuthLayout.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
-import AppPhoneInput from '@/components/ui/AppPhoneInput.vue'
+const AppPhoneInput = defineAsyncComponent(() => import('@/components/ui/AppPhoneInput.vue'))
 import AppCombobox from '@/components/ui/AppCombobox.vue'
 import AppStepper from '@/components/ui/AppStepper.vue'
 import { CITIES_CONGO, DEFAULT_CITY } from '@/data/cities'
