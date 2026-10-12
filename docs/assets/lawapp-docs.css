@@ -1,0 +1,293 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Serif+Display&display=swap');
+
+:root {
+  --theme-color: #1976d2;
+  --theme-color-dark: #1565c0;
+  --lawapp-ink: #0f172a;
+  --lawapp-muted: #64748b;
+  --lawapp-paper: #f8fafc;
+  --lawapp-line: #e2e8f0;
+  --lawapp-accent-soft: #eff6ff;
+  --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-display: 'DM Serif Display', Georgia, serif;
+}
+
+html,
+body {
+  font-family: var(--font-sans);
+  background: var(--lawapp-paper);
+}
+
+/* ——— Cover ——— */
+section.cover {
+  background: linear-gradient(145deg, #0f172a 0%, #1e3a5f 45%, #1976d2 100%);
+  color: #fff;
+  min-height: 100vh;
+}
+
+section.cover .cover-main {
+  max-width: 42rem;
+}
+
+section.cover h1 {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 8vw, 3.75rem);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+  border: none;
+}
+
+section.cover blockquote {
+  border-left: none;
+  font-size: 1.125rem;
+  opacity: 0.92;
+  line-height: 1.6;
+  margin: 1rem 0 2rem;
+}
+
+section.cover ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  padding: 0;
+}
+
+section.cover ul li {
+  display: block;
+  margin: 0;
+}
+
+section.cover ul li a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.65rem 1.25rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+section.cover ul li a:first-child {
+  background: #fff;
+  color: var(--theme-color-dark);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+}
+
+section.cover ul li a:not(:first-child) {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+section.cover ul li a:hover {
+  transform: translateY(-1px);
+}
+
+section.cover .cover-main > p:last-child {
+  margin-top: 2.5rem;
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
+/* ——— Sidebar ——— */
+.sidebar {
+  background: #fff;
+  border-right: 1px solid var(--lawapp-line);
+  width: 17rem;
+}
+
+.sidebar .app-name {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 400;
+  color: var(--lawapp-ink);
+  margin: 1.25rem 0 0.5rem;
+}
+
+.sidebar-nav li a {
+  font-size: 0.875rem;
+  line-height: 1.45;
+  border-radius: 6px;
+  margin: 2px 0.5rem;
+  padding: 0.35rem 0.65rem;
+}
+
+.sidebar-nav li.active > a {
+  background: var(--lawapp-accent-soft);
+  color: var(--theme-color-dark);
+  font-weight: 600;
+}
+
+.sidebar-toggle {
+  background: transparent;
+  border: none;
+  bottom: auto;
+  top: 0.75rem;
+}
+
+/* ——— Content ——— */
+.content {
+  padding-top: 2rem;
+  max-width: 52rem;
+}
+
+.markdown-section {
+  color: var(--lawapp-ink);
+  line-height: 1.75;
+}
+
+.markdown-section h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 2.25rem;
+  letter-spacing: -0.02em;
+  border-bottom: 1px solid var(--lawapp-line);
+  padding-bottom: 0.5rem;
+}
+
+.markdown-section h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin-top: 2.5rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--lawapp-line);
+}
+
+.markdown-section h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--lawapp-muted);
+}
+
+.markdown-section table {
+  display: table;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  border: 1px solid var(--lawapp-line);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.markdown-section thead {
+  background: var(--lawapp-accent-soft);
+}
+
+.markdown-section th,
+.markdown-section td {
+  border: 1px solid var(--lawapp-line);
+  padding: 0.6rem 0.85rem;
+}
+
+.markdown-section blockquote {
+  border-left: 4px solid var(--theme-color);
+  background: var(--lawapp-accent-soft);
+  border-radius: 0 8px 8px 0;
+  padding: 0.75rem 1rem;
+  color: var(--lawapp-muted);
+}
+
+.markdown-section code {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-radius: 4px;
+  padding: 0.15em 0.4em;
+  font-size: 0.88em;
+}
+
+.markdown-section pre {
+  border-radius: 10px;
+  border: 1px solid var(--lawapp-line);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.markdown-section a {
+  color: var(--theme-color);
+  font-weight: 500;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* Mermaid */
+.mermaid {
+  background: #fff;
+  border: 1px solid var(--lawapp-line);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin: 1.5rem 0;
+}
+
+/* Search */
+.search {
+  border-bottom: 1px solid var(--lawapp-line);
+  padding: 0.75rem 1rem;
+}
+
+.search input {
+  border-radius: 8px;
+  border: 1px solid var(--lawapp-line);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .content {
+    padding: 1.25rem 1rem 3rem;
+  }
+
+  .markdown-section h1 {
+    font-size: 1.75rem;
+  }
+
+  .sidebar {
+    width: 16rem;
+  }
+}
+
+/* Doc cards on homepage (custom class in markdown) */
+.doc-cards {
+  display: grid;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+@media (min-width: 640px) {
+  .doc-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.doc-card {
+  display: block;
+  padding: 1.1rem 1.25rem;
+  background: #fff;
+  border: 1px solid var(--lawapp-line);
+  border-radius: 12px;
+  text-decoration: none !important;
+  color: inherit !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.doc-card:hover {
+  border-color: var(--theme-color);
+  box-shadow: 0 8px 24px rgba(25, 118, 210, 0.12);
+}
+
+.doc-card strong {
+  display: block;
+  color: var(--lawapp-ink);
+  font-size: 0.95rem;
+  margin-bottom: 0.35rem;
+}
+
+.doc-card span {
+  font-size: 0.8rem;
+  color: var(--lawapp-muted);
+  font-weight: 400;
+}

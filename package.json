@@ -9,6 +9,8 @@
     "dev:full": "node server/index.mjs & vite",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
+    "docs": "npm exec -- serve docs -l tcp://127.0.0.1:4174",
+    "docs:lan": "npm exec -- serve docs -l tcp://0.0.0.0:4174",
     "publish:libre-eval": "node scripts/publish-libre-evaluation.mjs"
   },
   "dependencies": {
@@ -34,6 +36,7 @@
     "tailwindcss": "^4.3.0",
     "typescript": "~6.0.2",
     "vite": "^8.0.12",
-    "vue-tsc": "^3.2.8"
+    "vue-tsc": "^3.2.8",
+    "serve": "^14.2.4"
   }
 }

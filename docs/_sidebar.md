@@ -1,0 +1,6 @@
+- [Accueil documentation](README.md)
+- [Partager (mobile / LAN)](partage-documentation.md)
+- [Parcours utilisateurs & API backend](backend-user-journeys-api.md)
+- [Admin, référentiels & universités](admin-referentiels-universites.md)
+- [Gouvernance multi-tenant (super admin & rôles établissement)](gouvernance-multi-tenant.md)
+- [Présence QR (sessions, relais CP, UI/UX)](presence-qr-sessions.md)
