@@ -2,6 +2,8 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useEvaluationStore } from '@/stores/evaluations'
+import { useAuthStore } from '@/stores/auth'
+import { getEvaluationJoinBlockReason } from '@/utils/access'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
@@ -9,11 +11,13 @@ import AppBadge from '@/components/ui/AppBadge.vue'
 import { EVALUATION_TYPE_LABELS } from '@/types'
 import { KeyRound, ArrowRight, AlertCircle } from '@lucide/vue'
 import { formatMinutes } from '@/utils/helpers'
+import { isAccessCodeExpired } from '@/utils/evaluationAudience'
 import { dismissKeyboard, missingFieldsMessage } from '@/utils/form'
 
 const route = useRoute()
 const router = useRouter()
 const store = useEvaluationStore()
+const auth = useAuthStore()
 
 const code = ref('')
 const error = ref('')
@@ -51,6 +55,20 @@ function lookupCode() {
   if (evaluation.status === 'closed') {
     error.value = 'Cette évaluation est fermée.'
     return
+  }
+
+  if (isAccessCodeExpired(evaluation)) {
+    error.value = 'Ce code a expiré (délai de l’évaluation dépassé).'
+    return
+  }
+
+  const user = auth.currentUser
+  if (user) {
+    const block = getEvaluationJoinBlockReason(evaluation, user.id, undefined, user)
+    if (block) {
+      error.value = block
+      return
+    }
   }
 
   foundEvaluation.value = evaluation

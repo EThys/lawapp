@@ -24,6 +24,8 @@ import AppStatCard from '@/components/ui/AppStatCard.vue'
 
 
 import DashboardPage from '@/components/layout/DashboardPage.vue'
+import WorkspaceQualityPrompt from '@/components/account/WorkspaceQualityPrompt.vue'
+import TeacherInstitutionAlerts from '@/components/teacher/TeacherInstitutionAlerts.vue'
 
 import DashboardSection from '@/components/layout/DashboardSection.vue'
 
@@ -275,6 +277,15 @@ function shareClassLink() {
   <DashboardPage>
 
     <DashboardSection spacing="loose">
+
+    <WorkspaceQualityPrompt
+      v-if="!auth.hasStudentQuality"
+      v-reveal="96"
+      class="mb-6"
+      target="student"
+    />
+
+    <TeacherInstitutionAlerts v-reveal="97" />
 
     <AppCard
       v-if="needsTeacherProfile"

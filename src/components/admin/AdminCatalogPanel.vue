@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { useCatalogStore } from '@/stores/catalog'
+import { usePlatformGovernanceStore } from '@/stores/platformGovernance'
 import { useServerShimmer } from '@/composables/useServerShimmer'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppButton from '@/components/ui/AppButton.vue'
@@ -13,6 +14,7 @@ import { missingFieldsMessage } from '@/utils/form'
 import { BookOpen, Building2, Coins, GraduationCap, Plus } from '@lucide/vue'
 
 const catalog = useCatalogStore()
+const governance = usePlatformGovernanceStore()
 const { showShimmer } = useServerShimmer(computed(() => catalog.loading))
 
 const matiereName = ref('')
@@ -198,7 +200,11 @@ async function handleCreateDevise() {
           <Building2 class="w-5 h-5 text-accent" />
           <h3 class="font-semibold text-ink">Établissements</h3>
         </div>
-        <p class="text-sm text-ink-muted">Créer un établissement et consulter la liste.</p>
+        <p class="text-sm text-ink-muted">
+          Super admin : créer un établissement et choisir s’il apparaît en
+          <strong class="font-medium text-ink">GET public</strong> et s’il est
+          <strong class="font-medium text-ink">sélectionnable</strong> (prof / étudiant).
+        </p>
         <div class="flex flex-col sm:flex-row gap-3">
           <AppInput
             v-model="etabName"
@@ -223,9 +229,29 @@ async function handleCreateDevise() {
               <p class="text-sm font-medium text-ink">{{ item.name || `Établissement #${item.id}` }}</p>
               <p class="text-xs text-ink-faint">id {{ item.id }}</p>
             </div>
-            <AppBadge :variant="item.active === false ? 'muted' : 'success'">
-              {{ item.active === false ? 'Inactive' : 'Active' }}
-            </AppBadge>
+            <div class="flex flex-col items-end gap-2 shrink-0">
+              <AppBadge :variant="item.active === false ? 'muted' : 'success'">
+                {{ item.active === false ? 'Inactive' : 'Active' }}
+              </AppBadge>
+              <label class="flex items-center gap-2 text-xs text-ink-muted cursor-pointer">
+                <input
+                  type="checkbox"
+                  class="w-4 h-4 text-accent"
+                  :checked="governance.getFlags(item.id).publiclyListed"
+                  @change="governance.setPubliclyListed(item.id, ($event.target as HTMLInputElement).checked)"
+                />
+                Liste publique
+              </label>
+              <label class="flex items-center gap-2 text-xs text-ink-muted cursor-pointer">
+                <input
+                  type="checkbox"
+                  class="w-4 h-4 text-accent"
+                  :checked="governance.getFlags(item.id).partnerEnabled"
+                  @change="governance.setPartnerEnabled(item.id, ($event.target as HTMLInputElement).checked)"
+                />
+                Partenaire (sélection)
+              </label>
+            </div>
           </li>
         </ul>
         <p v-else class="text-sm text-ink-muted">Aucun établissement.</p>

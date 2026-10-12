@@ -18,6 +18,7 @@ import AppSuggest, { type SuggestItem } from '@/components/ui/AppSuggest.vue'
 import AppShimmerDetail from '@/components/loading/AppShimmerDetail.vue'
 import AppAttendanceCalendar from '@/components/attendance/AppAttendanceCalendar.vue'
 import PresenceSessionPanel from '@/components/teacher/PresenceSessionPanel.vue'
+import PresenceQrPanel from '@/components/teacher/PresenceQrPanel.vue'
 import type { AttendanceCalendarMark } from '@/utils/attendanceCalendar'
 import { getGroupShareUrl, getTodayDateString } from '@/utils/access'
 import { formatDate } from '@/utils/helpers'
@@ -161,6 +162,16 @@ async function loadAllMemberships() {
       }))
   })
 }
+
+const enrolledUserIdsForPresence = computed(() => {
+  if (!course.value) return [] as string[]
+  if (isApiCourse.value && apiClassroomId.value != null) {
+    return memberships.value
+      .filter((m) => m.classroomId === apiClassroomId.value)
+      .map((m) => String(m.userId))
+  }
+  return [...course.value.studentUserIds]
+})
 
 const enrolledStudents = computed(() => {
   if (!course.value) return []
@@ -570,10 +581,23 @@ function removeStudent(studentUserId: string) {
     </div>
 
     <AppCard
+      v-if="course"
+      class="mb-8"
+      title="Présence QR"
+      subtitle="Session à durée fixe, relais étudiants, scan mobile ou web"
+    >
+      <PresenceQrPanel
+        :classroom-id="courseId"
+        :classroom-name="course.name"
+        :enrolled-user-ids="enrolledUserIdsForPresence"
+      />
+    </AppCard>
+
+    <AppCard
       v-if="!isApiCourse"
       class="mb-8"
-      title="Présence en salle"
-      subtitle="Choisissez le WiFi, partagez le lien généré"
+      title="Présence WiFi (legacy)"
+      subtitle="Ancien mode réseau local — remplacé par le QR quand l’API sera branchée"
     >
       <PresenceSessionPanel :course-id="courseId" :member-count="enrolledStudents.length" />
     </AppCard>

@@ -4,6 +4,7 @@ import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useEvaluationStore } from '@/stores/evaluations'
 import { useCourseStore } from '@/stores/courses'
+import { usePresenceSessionStore } from '@/stores/presenceSessions'
 import { useNotificationStore } from '@/stores/notifications'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppButton from '@/components/ui/AppButton.vue'
@@ -11,18 +12,24 @@ import AppInput from '@/components/ui/AppInput.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import AppStatCard from '@/components/ui/AppStatCard.vue'
 import DashboardPage from '@/components/layout/DashboardPage.vue'
+import WorkspaceQualityPrompt from '@/components/account/WorkspaceQualityPrompt.vue'
 import DashboardSection from '@/components/layout/DashboardSection.vue'
 import { EVALUATION_TYPE_LABELS } from '@/types'
 import { formatEvaluationPeriod, formatDate, formatMinutes, downloadDataUrl } from '@/utils/helpers'
 import { Download } from '@lucide/vue'
 import { getEvaluationJoinBlockReason, evaluationAvailabilityLabel, getTodayDateString } from '@/utils/access'
+import {
+  isStudentAcademicPending,
+  isStudentAcademicVerified,
+  STUDENT_PARCOURS_PENDING_BANNER,
+} from '@/utils/evaluationAudience'
 import { isApiEnabled } from '@/config/features'
-import { parseApiEvaluationId, studentResultPath } from '@/utils/evaluationApiMapper'
+import { studentResultPath } from '@/utils/evaluationApiMapper'
 import { useServerShimmer } from '@/composables/useServerShimmer'
 import AppShimmerList from '@/components/loading/AppShimmerList.vue'
 import AppShimmerStats from '@/components/loading/AppShimmerStats.vue'
 import { appToast } from '@/utils/toast'
-import { ArrowRight, AlertCircle, ClipboardList, CalendarClock, BookOpen, Target, UserCheck, Users, Radio, Bell, Share2, History, ShieldAlert, UserX, CalendarCheck, RefreshCw } from '@lucide/vue'
+import { ArrowRight, AlertCircle, ClipboardList, CalendarClock, BookOpen, Target, UserCheck, Users, Radio, Bell, Share2, History, ShieldAlert, UserX, CalendarCheck, RefreshCw, CalendarDays } from '@lucide/vue'
 import type { Evaluation } from '@/types'
 
 const route = useRoute()
@@ -30,6 +37,7 @@ const router = useRouter()
 const auth = useAuthStore()
 const evalStore = useEvaluationStore()
 const courseStore = useCourseStore()
+const presenceStore = usePresenceSessionStore()
 const notifStore = useNotificationStore()
 
 const showNotifications = ref(false)
@@ -57,6 +65,20 @@ const sharedPresence = computed(() => {
     : []
 })
 
+const openQrPresenceSessions = computed(() => {
+  presenceTick.value
+  return auth.currentUser
+    ? presenceStore.getOpenSessionsForStudent(auth.currentUser.id)
+    : []
+})
+
+const activePresenceRelay = computed(() => {
+  presenceTick.value
+  return auth.currentUser
+    ? presenceStore.getActiveRelaySessionForStudent(auth.currentUser.id)
+    : undefined
+})
+
 const sharedEvaluations = computed(() =>
   auth.currentUser ? evalStore.getSharedEvaluationsForStudent(auth.currentUser.id) : []
 )
@@ -64,6 +86,19 @@ const sharedEvaluations = computed(() =>
 const catalogEvaluations = computed(() =>
   evalStore.getCatalogEvaluationsForStudent(),
 )
+
+const cohortEvaluations = computed(() =>
+  auth.currentUser ? evalStore.getCohortEvaluationsForStudent(auth.currentUser.id) : [],
+)
+
+const personalizedEvaluations = computed(() =>
+  auth.currentUser
+    ? evalStore.getPersonalizedEvaluationsForStudent(auth.currentUser.id)
+    : [],
+)
+
+const parcoursPending = computed(() => isStudentAcademicPending(auth.currentUser))
+const parcoursVerified = computed(() => isStudentAcademicVerified(auth.currentUser))
 
 const { showShimmer: catalogShimmer } = useServerShimmer(computed(() => evalStore.apiLoading))
 
@@ -74,9 +109,12 @@ const codeProtectedEvaluations = computed(() =>
 const hasSharedContent = computed(
   () =>
     sharedPresence.value.length > 0 ||
+    openQrPresenceSessions.value.length > 0 ||
+    !!activePresenceRelay.value ||
     sharedEvaluations.value.length > 0 ||
     codeProtectedEvaluations.value.length > 0 ||
-    sharedClassLinks.value.length > 0
+    sharedClassLinks.value.length > 0 ||
+    cohortEvaluations.value.length > 0
 )
 
 const myNotifications = computed(() =>
@@ -129,7 +167,7 @@ const sharedClassLinks = computed(() =>
 
 function evaluationBlockReason(evaluation: Evaluation): string | null {
   if (!auth.currentUser) return 'Connectez-vous pour commencer.'
-  return getEvaluationJoinBlockReason(evaluation, auth.currentUser.id, courseStore)
+  return getEvaluationJoinBlockReason(evaluation, auth.currentUser.id, courseStore, auth.currentUser)
 }
 
 function availabilityBadge(evaluation: Evaluation): { label: string; variant: 'success' | 'warning' | 'muted' } {
@@ -171,13 +209,12 @@ async function lookupCode() {
 
   let evaluation = evalStore.getByCode(code.value.trim())
   if (!evaluation && isApiEnabled()) {
-    const apiId = parseApiEvaluationId(code.value.trim())
-    if (apiId != null) {
-      evaluation = (await evalStore.resolveForStudentExam(code.value.trim())) ?? undefined
-    } else {
-      await evalStore.syncStudentCatalog()
-      evaluation = evalStore.getByCode(code.value.trim())
+    const resolved = await evalStore.resolveAccessCodeForStudent(code.value.trim())
+    if (!resolved.ok) {
+      reportStudentIssue(resolved.error)
+      return
     }
+    evaluation = resolved.evaluation
   }
   if (!evaluation) {
     reportStudentIssue('Code invalide. Vérifiez le code fourni par votre enseignant.')
@@ -247,7 +284,12 @@ async function joinEvaluation() {
   const studentId = profile.value.studentId
 
   const accessDenied = auth.currentUser
-    ? getEvaluationJoinBlockReason(foundEvaluation.value, auth.currentUser.id, courseStore)
+    ? getEvaluationJoinBlockReason(
+        foundEvaluation.value,
+        auth.currentUser.id,
+        courseStore,
+        auth.currentUser,
+      )
     : 'Connectez-vous pour commencer.'
   if (accessDenied) {
     reportStudentIssue(accessDenied)
@@ -381,6 +423,27 @@ onUnmounted(() => {
 <template>
   <DashboardPage>
     <DashboardSection spacing="loose">
+      <WorkspaceQualityPrompt
+        v-if="!auth.hasTeacherQuality"
+        v-reveal="96"
+        class="mb-6"
+        target="teacher"
+      />
+
+      <AppCard
+        v-if="parcoursPending"
+        v-reveal="97"
+        class="mb-6 p-4 border-warning/30 bg-warning-bg/25"
+        :hover="false"
+      >
+        <p class="text-sm text-ink">
+          {{ STUDENT_PARCOURS_PENDING_BANNER }}
+        </p>
+        <RouterLink to="/student/profile" class="inline-block mt-2 text-sm font-medium text-accent hover:underline">
+          Voir mon parcours →
+        </RouterLink>
+      </AppCard>
+
       <div v-reveal="100" class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-6">
         <div class="min-w-0 flex-1">
           <p class="label-caps mb-2">Espace étudiant</p>
@@ -396,6 +459,12 @@ onUnmounted(() => {
         </div>
 
         <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <RouterLink to="/student/calendar" class="w-full sm:w-auto">
+            <AppButton variant="outline" class="w-full sm:w-auto">
+              <CalendarDays class="w-4 h-4" />
+              Calendrier
+            </AppButton>
+          </RouterLink>
           <RouterLink to="/student/history" class="w-full sm:w-auto">
             <AppButton variant="outline" class="w-full sm:w-auto">
               <History class="w-4 h-4" />
@@ -417,7 +486,7 @@ onUnmounted(() => {
 
         <div
           v-if="showNotifications"
-          class="absolute right-0 left-0 sm:left-auto mt-2 w-full sm:w-80 bg-white border border-line shadow-lg z-20"
+          class="absolute right-0 left-0 sm:left-auto mt-2 w-full sm:w-80 max-h-[min(70dvh,24rem)] flex flex-col bg-white border border-line shadow-lg z-30 rounded-sm"
         >
           <div class="flex items-center justify-between px-4 py-3 border-b border-line">
             <p class="text-sm font-medium text-ink">Notifications</p>
@@ -453,13 +522,71 @@ onUnmounted(() => {
     </DashboardSection>
 
     <DashboardSection>
+      <AppCard v-if="cohortEvaluations.length" v-reveal="103" hover class="mb-6">
+        <div class="border-b border-line mb-4 sm:mb-5 pb-4">
+          <h3 class="font-display text-ink text-lg">Mes formations</h3>
+          <p class="text-xs text-ink-faint mt-1">
+            Épreuves réservées à votre salle (lien reçu du formateur) — hors catalogue public.
+          </p>
+        </div>
+        <div class="space-y-3">
+          <div
+            v-for="evaluation in cohortEvaluations"
+            :key="`cohort-${evaluation.id}`"
+            class="p-4 border border-line bg-paper-warm/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+          >
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-ink">{{ evaluation.title }}</p>
+              <p class="text-xs text-ink-muted mt-1">
+                {{ evaluation.subject }}
+                <span v-if="evaluation.durationMinutes"> · {{ formatMinutes(evaluation.durationMinutes) }}</span>
+              </p>
+            </div>
+            <AppButton
+              size="sm"
+              :disabled="!!evaluationBlockReason(evaluation)"
+              @click="startEvaluation(evaluation)"
+            >
+              Commencer
+            </AppButton>
+          </div>
+        </div>
+      </AppCard>
+
+      <AppCard v-if="personalizedEvaluations.length" v-reveal="104" hover class="mb-6">
+        <div class="border-b border-line mb-4 sm:mb-5 pb-4">
+          <h3 class="font-display text-ink text-lg">Pour vous</h3>
+          <p class="text-xs text-ink-faint mt-1">Vos examens de promo / faculté (parcours validé).</p>
+        </div>
+        <div class="space-y-3">
+          <div
+            v-for="evaluation in personalizedEvaluations"
+            :key="`personal-${evaluation.id}`"
+            class="p-4 border border-accent/25 bg-accent-light/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+          >
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-ink">{{ evaluation.title }}</p>
+              <p class="text-xs text-ink-muted mt-1">
+                {{ evaluation.subject }}
+                <span v-if="evaluation.durationMinutes"> · {{ formatMinutes(evaluation.durationMinutes) }}</span>
+              </p>
+            </div>
+            <AppButton
+              size="sm"
+              :disabled="!!evaluationBlockReason(evaluation)"
+              @click="startEvaluation(evaluation)"
+            >
+              Commencer
+            </AppButton>
+          </div>
+        </div>
+      </AppCard>
+
       <AppCard v-reveal="105" hover>
         <div class="flex items-start justify-between gap-3 border-b border-line mb-4 sm:mb-5 pb-4">
           <div class="min-w-0">
-            <h3 class="font-display text-ink text-lg">Évaluations disponibles</h3>
-            <p class="text-xs text-ink-faint mt-1">
-              {{ isApiEnabled() ? 'Du plus récent au plus ancien' : 'Évaluations ouvertes sur la plateforme' }}
-            </p>
+            <h3 class="font-display text-ink text-lg">Catalogue & codes</h3>
+            <p class="text-xs text-ink-faint mt-1">Ouvert à tous · ou entrez le code du prof.</p>
           </div>
           <button
             v-if="isApiEnabled()"
@@ -474,8 +601,16 @@ onUnmounted(() => {
           </button>
         </div>
         <AppShimmerList v-if="catalogShimmer" variant="eval" :count="4" />
-        <div v-else-if="catalogEvaluations.length === 0" class="text-sm text-ink-muted py-6 text-center">
-          Aucune évaluation disponible pour le moment.
+        <div v-else-if="catalogEvaluations.length === 0" class="text-sm text-ink-muted py-6 text-center px-2">
+          <template v-if="parcoursPending">
+            Aucune évaluation libre pour le moment. Les examens ciblés apparaîtront dans « Pour vous » après validation de votre parcours.
+          </template>
+          <template v-else-if="parcoursVerified">
+            Aucune évaluation libre pour le moment. Consultez « Pour vous » si des examens ciblés existent.
+          </template>
+          <template v-else>
+            Aucune évaluation disponible pour le moment.
+          </template>
         </div>
         <div v-else class="space-y-3">
           <div
@@ -589,6 +724,43 @@ onUnmounted(() => {
         {{ error }}
       </div>
       <div class="space-y-4">
+        <div
+          v-if="activePresenceRelay"
+          class="p-4 border border-accent/30 bg-accent-light/20 space-y-3"
+        >
+          <p class="text-sm font-medium text-ink">Relais présence actif</p>
+          <p class="text-xs text-ink-muted">{{ activePresenceRelay.classroomName }}</p>
+          <RouterLink :to="{ name: 'presence-relay', params: { sessionId: activePresenceRelay.id } }">
+            <AppButton size="sm">
+              Afficher le QR relais
+              <ArrowRight class="w-4 h-4" />
+            </AppButton>
+          </RouterLink>
+        </div>
+
+        <div
+          v-for="session in openQrPresenceSessions"
+          :key="session.id"
+          class="p-4 border border-line bg-paper-warm space-y-3"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-sm font-medium text-ink flex items-center gap-2">
+                <UserCheck class="w-4 h-4 text-accent" />
+                Présence QR · {{ session.classroomName }}
+              </p>
+              <p class="text-xs text-ink-muted mt-1">Scannez le QR affiché en salle</p>
+            </div>
+            <AppBadge variant="success">Ouverte</AppBadge>
+          </div>
+          <RouterLink to="/presence/check-in">
+            <AppButton size="sm">
+              Scanner / pointer
+              <ArrowRight class="w-4 h-4" />
+            </AppButton>
+          </RouterLink>
+        </div>
+
         <div
           v-for="{ course, tunnel } in sharedPresence"
           :key="tunnel.id"

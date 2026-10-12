@@ -12,6 +12,14 @@ import type {
 } from '@/types'
 import { DEFAULT_ANTI_CHEAT, DEFAULT_SETTINGS } from '@/types'
 import { generateId, generateCode } from '@/utils/helpers'
+import {
+  computeAccessCodeExpiresAt,
+  isCohortEvaluation,
+  isOpenCatalogEvaluation,
+  isStudentAcademicVerified,
+  studentMatchesEvaluationAudience,
+} from '@/utils/evaluationAudience'
+import { useAuthStore } from '@/stores/auth'
 import { useCourseStore } from '@/stores/courses'
 import { useNotificationStore } from '@/stores/notifications'
 import { isApiEnabled, TOKEN_KEY } from '@/config/features'
@@ -38,6 +46,7 @@ import {
   resolveEvaluationDurationMinutes,
 } from '@/utils/evaluationApiMapper'
 import { extractApiError } from '@/api/client'
+import { messageForJoinBlockCode } from '@/utils/apiJoinMessages'
 import type {
   EvaluationAnswerableSummary,
   ApiEvaluation,
@@ -46,7 +55,6 @@ import type {
 } from '@/api/types'
 import { parseSubmissionApiResponse, clearMySubmissionCache, getMySubmission } from '@/api/evaluations'
 import { useTeacherStore } from '@/stores/teachers'
-import { useAuthStore } from '@/stores/auth'
 
 const EVALUATIONS_KEY = 'lawapp_evaluations'
 const SESSIONS_KEY = 'lawapp_sessions'
@@ -90,6 +98,7 @@ export const useEvaluationStore = defineStore('evaluations', () => {
   const apiLoading = ref(false)
   const apiError = ref<string | null>(null)
   const answerableFromApi = ref<EvaluationAnswerableSummary[]>([])
+  const forMeFromApi = ref<EvaluationAnswerableSummary[]>([])
 
   const activeEvaluations = computed(() =>
     evaluations.value.filter((e) => e.status === 'active')
@@ -151,6 +160,19 @@ export const useEvaluationStore = defineStore('evaluations', () => {
     requireEnrollment?: boolean
     presentOnly?: boolean
     sessionDate?: string | null
+    publicationScope?: Evaluation['publicationScope']
+    linkedInstitutionKey?: string | null
+    linkedInstitutionLabel?: string | null
+    institutionPublicationPending?: boolean
+    audienceMode?: Evaluation['audienceMode']
+    audienceInstitutionKey?: string | null
+    audienceInstitutionLabel?: string | null
+    audienceFaculty?: string | null
+    audiencePromotionLabels?: string[]
+    audienceClassroomId?: string | null
+    audienceStudentUserIds?: string[]
+    accessCodeExpiresAt?: string | null
+    excludeFromOpenCatalog?: boolean
   }): Evaluation {
     const now = new Date().toISOString()
     const evaluation: Evaluation = {
@@ -176,7 +198,22 @@ export const useEvaluationStore = defineStore('evaluations', () => {
       presentOnly: data.presentOnly ?? false,
       sessionDate: data.sessionDate ?? null,
       sharedToClassAt: null,
-    requiresAccessCode: false,
+      requiresAccessCode: false,
+      publicationScope: data.publicationScope ?? 'open',
+      linkedInstitutionKey: data.linkedInstitutionKey ?? null,
+      linkedInstitutionLabel: data.linkedInstitutionLabel ?? null,
+      institutionPublicationPending: data.institutionPublicationPending ?? false,
+      audienceMode: data.audienceMode ?? 'open',
+      audienceInstitutionKey: data.audienceInstitutionKey ?? null,
+      audienceInstitutionLabel: data.audienceInstitutionLabel ?? null,
+      audienceFaculty: data.audienceFaculty ?? null,
+      audiencePromotionLabels: data.audiencePromotionLabels ?? [],
+      audienceClassroomId: data.audienceClassroomId ?? null,
+      audienceStudentUserIds: data.audienceStudentUserIds ?? [],
+      accessCodeExpiresAt: data.accessCodeExpiresAt ?? null,
+      excludeFromOpenCatalog:
+        data.excludeFromOpenCatalog ??
+        data.publicationScope === 'cohort',
       antiCheat: { ...DEFAULT_ANTI_CHEAT, ...data.antiCheat },
       settings: { ...DEFAULT_SETTINGS, ...data.settings },
       createdAt: now,
@@ -342,10 +379,23 @@ export const useEvaluationStore = defineStore('evaluations', () => {
     apiLoading.value = true
     apiError.value = null
     try {
-      const raw = await evaluationsApi.listAnswerableEvaluations()
+      const [raw, forMeRaw] = await Promise.all([
+        evaluationsApi.listAnswerableEvaluations(),
+        evaluationsApi.listForMeEvaluations().catch(() => [] as EvaluationAnswerableSummary[]),
+      ])
       const answerable = filterAnswerableStillOpen(raw)
+      const forMe = filterAnswerableStillOpen(forMeRaw)
       answerableFromApi.value = answerable
-      const mapped = answerable.map((item) => mapAnswerableSummaryToLocal(item, 'Enseignant'))
+      forMeFromApi.value = forMe
+      const mergedSummaries = [...answerable]
+      const seen = new Set(answerable.map((a) => a.id))
+      for (const item of forMe) {
+        if (!seen.has(item.id)) {
+          seen.add(item.id)
+          mergedSummaries.push(item)
+        }
+      }
+      const mapped = mergedSummaries.map((item) => mapAnswerableSummaryToLocal(item, 'Enseignant'))
       // Remplace le catalogue API étudiant (évite de garder d'anciennes questions avec isValid).
       evaluations.value = [
         ...evaluations.value.filter((e) => !e.isFromApi),
@@ -390,11 +440,68 @@ export const useEvaluationStore = defineStore('evaluations', () => {
    * Résout une évaluation pour un étudiant : cache → repondre → métadonnées → passage.
    * Les questions d’examen viennent toujours de GET …/passage.
    */
+  async function resolveAccessCodeForStudent(
+    code: string,
+  ): Promise<{ ok: true; evaluation: Evaluation } | { ok: false; error: string }> {
+    const trimmed = code.trim()
+    if (!trimmed) return { ok: false, error: 'Code vide.' }
+    if (!isApiEnabled()) {
+      const local = getByCode(trimmed)
+      return local
+        ? { ok: true, evaluation: local }
+        : { ok: false, error: 'Code invalide.' }
+    }
+    apiError.value = null
+    try {
+      const resolved = await evaluationsApi.resolveAccessCode(trimmed)
+      if (resolved.canJoin === false) {
+        const msg =
+          messageForJoinBlockCode(resolved.blockReasonCode) ??
+          resolved.message ??
+          'Vous ne pouvez pas rejoindre cette épreuve.'
+        return { ok: false, error: msg }
+      }
+      const apiId =
+        resolved.evaluationId ??
+        parseApiEvaluationId(trimmed) ??
+        getByCode(trimmed)?.apiId ??
+        null
+      if (apiId == null) {
+        return { ok: false, error: resolved.message ?? 'Code introuvable.' }
+      }
+      const evaluation = await resolveForStudentExam(String(apiId))
+      if (!evaluation) {
+        return { ok: false, error: apiError.value ?? 'Évaluation introuvable.' }
+      }
+      return { ok: true, evaluation }
+    } catch (e) {
+      const msg = extractApiError(e)
+      apiError.value = msg
+      return { ok: false, error: msg }
+    }
+  }
+
   async function resolveForStudentExam(codeOrId: string): Promise<Evaluation | null> {
-    const apiId =
+    let apiId =
       parseApiEvaluationId(codeOrId) ??
       getByCode(codeOrId)?.apiId ??
       null
+
+    if (isApiEnabled() && apiId == null && codeOrId.trim()) {
+      try {
+        const resolved = await evaluationsApi.resolveAccessCode(codeOrId)
+        if (resolved.canJoin === false) {
+          apiError.value =
+            messageForJoinBlockCode(resolved.blockReasonCode) ??
+            resolved.message ??
+            'Accès refusé.'
+          return null
+        }
+        if (resolved.evaluationId) apiId = resolved.evaluationId
+      } catch {
+        /* fallback cache / repondre */
+      }
+    }
 
     let base = getByCode(codeOrId) ?? (apiId != null ? getById(String(apiId)) : undefined)
 
@@ -1215,22 +1322,107 @@ export const useEvaluationStore = defineStore('evaluations', () => {
     return sessions.value.find((s) => s.id === id)
   }
 
+  function stampAccessCodeExpiry(evaluationId: string) {
+    const evaluation = getById(evaluationId)
+    if (!evaluation) return
+    updateEvaluation(evaluationId, {
+      accessCodeExpiresAt: computeAccessCodeExpiresAt(evaluation),
+    })
+  }
+
+  /** Évaluations visibles automatiquement (parcours étudiant validé + ciblage). */
+  function getPersonalizedEvaluationsForStudent(studentUserId: string): Evaluation[] {
+    const auth = useAuthStore()
+    const user = auth.getUserById(studentUserId) ?? auth.currentUser
+    if (!isStudentAcademicVerified(user)) {
+      return []
+    }
+    if (isApiEnabled()) {
+      const forMeIds = new Set(forMeFromApi.value.map((a) => a.id))
+      const list = evaluations.value.filter(
+        (e) =>
+          e.isFromApi &&
+          e.apiId != null &&
+          forMeIds.has(e.apiId) &&
+          e.status === 'active' &&
+          !studentAlreadyFinishedEvaluation(e, studentUserId),
+      )
+      return sortEvaluationsNewestFirst(list)
+    }
+    const list = evaluations.value.filter(
+      (e) =>
+        e.status === 'active' &&
+        !studentAlreadyFinishedEvaluation(e, studentUserId) &&
+        studentMatchesEvaluationAudience(e, user, studentUserId),
+    )
+    return sortEvaluationsNewestFirst(list)
+  }
+
   function getCatalogEvaluationsForStudent(): Evaluation[] {
     if (isApiEnabled()) {
       const auth = useAuthStore()
       const studentId = auth.currentUser?.id
       const answerableIds = new Set(answerableFromApi.value.map((a) => a.id))
+      const forMeIds = new Set(forMeFromApi.value.map((a) => a.id))
       let list = evaluations.value.filter(
-        (e) => e.isFromApi && e.apiId != null && answerableIds.has(e.apiId),
+        (e) =>
+          e.isFromApi &&
+          e.apiId != null &&
+          answerableIds.has(e.apiId) &&
+          !forMeIds.has(e.apiId),
       )
       if (studentId) {
         list = list.filter((e) => !studentAlreadyFinishedEvaluation(e, studentId))
       }
       return sortEvaluationsNewestFirst(list)
     }
-    return sortEvaluationsNewestFirst(
-      evaluations.value.filter((e) => e.status === 'active' && !e.requiresAccessCode),
+    const auth = useAuthStore()
+    const user = auth.currentUser
+    const studentId = user?.id
+    const personalizedIds = new Set(
+      studentId ? getPersonalizedEvaluationsForStudent(studentId).map((e) => e.id) : [],
     )
+    return sortEvaluationsNewestFirst(
+      evaluations.value.filter(
+        (e) =>
+          e.status === 'active' &&
+          isOpenCatalogEvaluation(e) &&
+          !personalizedIds.has(e.id),
+      ),
+    )
+  }
+
+  /** Toutes les épreuves accessibles (dédupliquées) — calendrier, exports iCal. */
+  function getCalendarEvaluationsForStudent(studentUserId: string): Evaluation[] {
+    const byId = new Map<string, Evaluation>()
+    for (const e of getPersonalizedEvaluationsForStudent(studentUserId)) {
+      byId.set(e.id, e)
+    }
+    for (const e of getCatalogEvaluationsForStudent()) {
+      byId.set(e.id, e)
+    }
+    for (const e of getCohortEvaluationsForStudent(studentUserId)) {
+      byId.set(e.id, e)
+    }
+    for (const e of getCodeProtectedEvaluationsForStudent(studentUserId)) {
+      byId.set(e.id, e)
+    }
+    return sortEvaluationsNewestFirst([...byId.values()])
+  }
+
+  /** Formations / cohortes : membres de la salle uniquement (hors catalogue public). */
+  function getCohortEvaluationsForStudent(studentUserId: string): Evaluation[] {
+    const courseStore = useCourseStore()
+    const enrolledIds = new Set(
+      courseStore.getCoursesForStudent(studentUserId).map((c) => c.id),
+    )
+    const list = evaluations.value.filter((e) => {
+      if (e.status !== 'active' || !isCohortEvaluation(e)) return false
+      if (studentAlreadyFinishedEvaluation(e, studentUserId)) return false
+      const cid = e.audienceClassroomId ?? e.courseId
+      return !!cid && enrolledIds.has(cid)
+    })
+    return sortEvaluationsNewestFirst(list)
   }
 
   function getTeacherEvaluationsSorted(teacherId: string): Evaluation[] {
@@ -1277,6 +1469,7 @@ export const useEvaluationStore = defineStore('evaluations', () => {
       sharedToClassAt: new Date().toISOString(),
       requiresAccessCode: true,
     })
+    stampAccessCodeExpiry(evaluationId)
     return { ok: true }
   }
 
@@ -1303,6 +1496,7 @@ export const useEvaluationStore = defineStore('evaluations', () => {
       sharedToClassAt: new Date().toISOString(),
       requiresAccessCode: false,
     })
+    stampAccessCodeExpiry(evaluationId)
 
     const notifications = useNotificationStore()
     notifications.pushToMany(course.studentUserIds, {
@@ -1323,8 +1517,10 @@ export const useEvaluationStore = defineStore('evaluations', () => {
     apiLoading,
     apiError,
     answerableFromApi,
+    forMeFromApi,
     syncFromApi,
     syncStudentCatalog,
+    resolveAccessCodeForStudent,
     fetchEvaluationById,
     loadPassageFromApi,
     resolveForStudentExam,
@@ -1356,6 +1552,9 @@ export const useEvaluationStore = defineStore('evaluations', () => {
     updateSession,
     getSession,
     getCatalogEvaluationsForStudent,
+    getCalendarEvaluationsForStudent,
+    getCohortEvaluationsForStudent,
+    getPersonalizedEvaluationsForStudent,
     getTeacherEvaluationsSorted,
     getSharedEvaluationsForStudent,
     getCodeProtectedEvaluationsForStudent,

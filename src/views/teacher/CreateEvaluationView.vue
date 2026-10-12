@@ -11,6 +11,8 @@ import AppBadge from '@/components/ui/AppBadge.vue'
 import AppStepper from '@/components/ui/AppStepper.vue'
 import AppSuggest, { type SuggestItem } from '@/components/ui/AppSuggest.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
+import AppDisclosure from '@/components/ui/AppDisclosure.vue'
+import AppChoicePills from '@/components/ui/AppChoicePills.vue'
 import { EVALUATION_TYPE_LABELS, type EvaluationType, type Question, type QuestionType } from '@/types'
 import { isApiEnabled } from '@/config/features'
 import { extractApiError } from '@/api/client'
@@ -21,10 +23,19 @@ import { useCourseStore } from '@/stores/courses'
 import { useClassroomStore, mapClassroomToCourse } from '@/stores/classrooms'
 import { useCategoryStore } from '@/stores/categories'
 import { useCatalogStore } from '@/stores/catalog'
+import { usePlatformGovernanceStore } from '@/stores/platformGovernance'
 import { appToast } from '@/utils/toast'
 import type { CorrectionMode } from '@/types'
 import { ArrowLeft, Plus, Trash2, GripVertical, ChevronLeft, ChevronRight, CalendarClock, Users, UserCheck, FileUp } from '@lucide/vue'
 import { dismissKeyboard } from '@/utils/form'
+import {
+  institutionLinkSelectOptions,
+  institutionLabelForKey,
+  resolveEvaluationPublication,
+} from '@/utils/institutionAffiliation'
+import type { EvaluationAudienceMode, EvaluationPublicationScope } from '@/types'
+import { FACULTY_OPTIONS, PROMOTION_OPTIONS } from '@/data/academic'
+import { computeAccessCodeExpiresAt } from '@/utils/evaluationAudience'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,6 +45,7 @@ const courseStore = useCourseStore()
 const classroomStore = useClassroomStore()
 const categoryStore = useCategoryStore()
 const catalogStore = useCatalogStore()
+const governance = usePlatformGovernanceStore()
 const subjectId = ref<string | null>(null)
 
 const FALLBACK_SUBJECTS = [
@@ -55,7 +67,7 @@ const isEditing = computed(() => !!route.params.id && route.name === 'teacher-ed
 const editId = computed(() => route.params.id as string | undefined)
 
 const step = ref(0)
-const steps = ['Informations', 'Questions', 'Sécurité & publication']
+const steps = ['Informations', 'Questions', 'Publication']
 
 const title = ref('')
 const description = ref('')
@@ -87,6 +99,128 @@ const classroomsLoading = ref(false)
 const evaluationAnnexData = ref('')
 const evaluationAnnexName = ref('')
 const evaluationAnnexError = ref('')
+const publicationScope = ref<EvaluationPublicationScope>('open')
+const linkedInstitutionKey = ref('')
+const institutionOptions = computed(() => institutionLinkSelectOptions())
+const universitySelectOptions = computed(() => {
+  if (isApiEnabled() && catalogStore.activeEtablissements.length) {
+    return governance.filterPartnerEnabled(catalogStore.activeEtablissements).map((e) => ({
+      value: String(e.id),
+      label: e.name?.trim() || `Établissement #${e.id}`,
+    }))
+  }
+  return institutionLinkSelectOptions()
+    .filter((o) => !('disabled' in o && o.disabled))
+    .map((o) => ({ value: o.value, label: o.label }))
+})
+const promotionCatalogLabels = computed((): string[] => {
+  if (catalogStore.activePromotions.length) {
+    return catalogStore.activePromotions
+      .map((p) => p.name?.trim())
+      .filter((n): n is string => !!n)
+  }
+  return [...PROMOTION_OPTIONS]
+})
+const audienceMode = ref<EvaluationAudienceMode>('open')
+const cohortRoomMode = ref<'new' | 'existing'>('new')
+const cohortNewName = ref('')
+const cohortNewDesc = ref('')
+const cohortRoomModeOptions = [
+  { value: 'new' as const, label: 'Créer la salle', hint: 'Maintenant' },
+  { value: 'existing' as const, label: 'Salle existante', hint: 'Déjà créée' },
+]
+const audienceInstitutionKey = ref('')
+const audienceFaculty = ref('')
+const selectedPromotions = ref<string[]>([])
+const targetStudentIds = ref<string[]>([])
+const studentSearchQuery = ref('')
+const studentSearchResults = ref<{ id: string; label: string }[]>([])
+const facultyOptions = computed(() => FACULTY_OPTIONS.map((f) => ({ value: f, label: f })))
+const promotionChoices = PROMOTION_OPTIONS
+
+const publicationScopeOptions = [
+  { value: 'open', label: 'Libre', hint: 'Catalogue public' },
+  { value: 'institution', label: 'Université', hint: 'Promo & faculté' },
+  { value: 'cohort', label: 'Formation', hint: 'Créer la salle ici' },
+]
+
+const audienceModeOptions = computed(() => [
+  { value: 'open', label: 'Code ou lien suffit' },
+  { value: 'classroom', label: 'Ma salle de cours' },
+  { value: 'promotions', label: 'Promotions (L1, L2…)' },
+  { value: 'faculty', label: 'Toute une faculté' },
+  { value: 'students', label: 'Étudiants précis' },
+])
+
+function togglePromotion(p: string) {
+  if (selectedPromotions.value.includes(p)) {
+    selectedPromotions.value = selectedPromotions.value.filter((x) => x !== p)
+  } else {
+    selectedPromotions.value = [...selectedPromotions.value, p]
+  }
+}
+
+function searchTargetStudents() {
+  const hits = auth.searchStudents(studentSearchQuery.value, 8)
+  studentSearchResults.value = hits.map((u) => ({
+    id: u.id,
+    label: `${u.lastName} ${u.firstName}${u.studentId ? ` · ${u.studentId}` : ''}`,
+  }))
+}
+
+function addTargetStudent(id: string) {
+  if (!targetStudentIds.value.includes(id)) {
+    targetStudentIds.value = [...targetStudentIds.value, id]
+  }
+  studentSearchQuery.value = ''
+  studentSearchResults.value = []
+}
+
+function removeTargetStudent(id: string) {
+  targetStudentIds.value = targetStudentIds.value.filter((x) => x !== id)
+}
+
+function resolveInstitutionLabel(key: string): string {
+  const hit = universitySelectOptions.value.find((o) => o.value === key)
+  return hit?.label ?? institutionLabelForKey(key) ?? key
+}
+
+function buildAudiencePatch(): Partial<import('@/types').Evaluation> {
+  if (publicationScope.value === 'institution') {
+    const key = linkedInstitutionKey.value.trim()
+    return {
+      audienceMode: 'promotions',
+      audienceInstitutionKey: key || null,
+      audienceInstitutionLabel: key ? resolveInstitutionLabel(key) : null,
+      audienceFaculty: audienceFaculty.value.trim() || null,
+      audiencePromotionLabels: [...selectedPromotions.value],
+      audienceClassroomId: null,
+      audienceStudentUserIds: [],
+      excludeFromOpenCatalog: true,
+    }
+  }
+
+  let mode = audienceMode.value
+  if (publicationScope.value === 'cohort') {
+    mode = 'classroom'
+  } else if (mode === 'open' && useClassroom.value && courseId.value) {
+    mode = 'classroom'
+  }
+  const instKey = audienceInstitutionKey.value || null
+  const instLabel = instKey ? resolveInstitutionLabel(instKey) : null
+  return {
+    audienceMode: mode,
+    audienceInstitutionKey:
+      mode === 'faculty' || mode === 'promotions' ? instKey : null,
+    audienceInstitutionLabel:
+      mode === 'faculty' || mode === 'promotions' ? instLabel : null,
+    audienceFaculty: mode === 'faculty' ? audienceFaculty.value.trim() || null : null,
+    audiencePromotionLabels: mode === 'promotions' ? [...selectedPromotions.value] : [],
+    audienceClassroomId: mode === 'classroom' ? courseId.value : null,
+    audienceStudentUserIds: mode === 'students' ? [...targetStudentIds.value] : [],
+    excludeFromOpenCatalog: publicationScope.value === 'cohort',
+  }
+}
 
 const teacherCourses = computed(() => {
   if (isApiEnabled()) {
@@ -98,11 +232,80 @@ const teacherCourses = computed(() => {
 })
 
 const classroomOptions = computed(() =>
-  teacherCourses.value.map((c) => ({
-    value: c.id,
-    label: c.name,
-  })),
+  teacherCourses.value
+    .filter((c) => {
+      if (publicationScope.value !== 'cohort') return true
+      return (c.roomKind ?? 'university_class') === 'training_cohort'
+    })
+    .map((c) => ({
+      value: c.id,
+      label: c.name,
+    })),
 )
+
+watch(publicationScope, (scope) => {
+  if (scope === 'cohort') {
+    useClassroom.value = true
+    audienceMode.value = 'classroom'
+    presentOnly.value = false
+    if (courseId.value) {
+      const course = teacherCourses.value.find((c) => c.id === courseId.value)
+      if (course && (course.roomKind ?? 'university_class') !== 'training_cohort') {
+        courseId.value = null
+      }
+    }
+  }
+  if (scope === 'institution') {
+    useClassroom.value = false
+    courseId.value = null
+    presentOnly.value = false
+    audienceMode.value = 'promotions'
+  }
+  if (scope === 'open') {
+    audienceMode.value = 'open'
+  }
+})
+
+async function ensureCohortRoom(): Promise<boolean> {
+  if (publicationScope.value !== 'cohort') return true
+  if (cohortRoomMode.value === 'existing') {
+    if (!courseId.value) {
+      errors.value = ['Choisissez une salle de formation existante.']
+      return false
+    }
+    return true
+  }
+  const name = cohortNewName.value.trim()
+  if (!name) {
+    errors.value = ['Donnez un nom à la salle de formation (créée avec cette évaluation).']
+    return false
+  }
+  if (!auth.currentUser) return false
+  if (isApiEnabled()) {
+    const result = await classroomStore.create(
+      name,
+      cohortNewDesc.value,
+      'training_cohort',
+    )
+    if (!result.ok) {
+      errors.value = [result.error]
+      return false
+    }
+    courseId.value = String(result.classroom.id)
+    await classroomStore.syncMine()
+  } else {
+    const cls = courseStore.createCourse({
+      teacherId: auth.currentUser.id,
+      teacherName: `${auth.currentUser.firstName} ${auth.currentUser.lastName}`,
+      name,
+      subject: cohortNewDesc.value.trim() || 'Formation',
+      roomKind: 'training_cohort',
+    })
+    courseId.value = cls.id
+  }
+  appToast.success(`Salle « ${name} » prête — partagez le lien depuis Mes salles.`)
+  return true
+}
 
 const courseIdModel = computed({
   get: () => courseId.value ?? '',
@@ -196,6 +399,7 @@ onMounted(async () => {
         classroomStore.syncMine(),
         categoryStore.syncCategories(),
         catalogStore.syncMatieres(),
+        catalogStore.syncAll(),
       ])
     } finally {
       classroomsLoading.value = false
@@ -238,9 +442,32 @@ onMounted(async () => {
         evaluationAnnexData.value = eval_.fileContent
         evaluationAnnexName.value = 'annexe-evaluation.pdf'
       }
+      publicationScope.value = eval_.publicationScope ?? 'open'
+      linkedInstitutionKey.value = eval_.linkedInstitutionKey ?? ''
+      audienceMode.value = eval_.audienceMode ?? 'open'
+      audienceInstitutionKey.value = eval_.audienceInstitutionKey ?? ''
+      audienceFaculty.value = eval_.audienceFaculty ?? ''
+      selectedPromotions.value = [...(eval_.audiencePromotionLabels ?? [])]
+      targetStudentIds.value = [...(eval_.audienceStudentUserIds ?? [])]
     }
   }
 })
+
+function buildPublicationPatch(asDraft: boolean) {
+  if (publicationScope.value === 'institution' && !linkedInstitutionKey.value) {
+    errors.value = ['Choisissez un établissement pour une évaluation liée.']
+    return null
+  }
+  const key = publicationScope.value === 'institution' ? linkedInstitutionKey.value : null
+  const label = key ? institutionLabelForKey(key) : null
+  return resolveEvaluationPublication({
+    asDraft,
+    publicationScope: publicationScope.value,
+    linkedInstitutionKey: key,
+    linkedInstitutionLabel: label,
+    teacherAffiliation: auth.currentUser?.teacherInstitutionAffiliation,
+  })
+}
 
 function addQuestion(qType: QuestionType) {
   questions.value.push(createEmptyQuestion(qType))
@@ -393,8 +620,11 @@ function buildData() {
     questions: questions.value.map((q) => ({ ...q, points: Number(q.points) })),
     availableFrom,
     availableUntil,
-    courseId: useClassroom.value ? courseId.value : null,
-    requireEnrollment: useClassroom.value && !!courseId.value,
+    courseId:
+      useClassroom.value || publicationScope.value === 'cohort' ? courseId.value : null,
+    requireEnrollment:
+      publicationScope.value === 'cohort' ||
+      (useClassroom.value && !!courseId.value),
     presentOnly: useClassroom.value && presentOnly.value && !!courseId.value,
     sessionDate: useClassroom.value && presentOnly.value && courseId.value ? sessionDate.value : null,
     fileContent: isApiEnabled() ? evaluationAnnexData.value : undefined,
@@ -441,18 +671,84 @@ async function save(asDraft = true) {
     subjectId.value = String(existing.id)
   }
 
+  const publication = buildPublicationPatch(asDraft)
+  if (!publication) return
+  if (publicationScope.value === 'institution') {
+    if (!linkedInstitutionKey.value) {
+      errors.value = ['Choisissez l’université (référentiel admin).']
+      step.value = steps.length - 1
+      return
+    }
+    if (!audienceFaculty.value.trim()) {
+      errors.value = ['Choisissez la faculté ciblée (liste établissement).']
+      step.value = steps.length - 1
+      return
+    }
+    if (!selectedPromotions.value.length) {
+      errors.value = ['Choisissez au moins une promotion (référentiel admin).']
+      step.value = steps.length - 1
+      return
+    }
+  }
+  saving.value = true
+  if (!(await ensureCohortRoom())) {
+    saving.value = false
+    step.value = steps.length - 1
+    return
+  }
+  saving.value = false
+
   const data = buildData()
+  const audience = buildAudiencePatch()
+  if (
+    publicationScope.value !== 'institution' &&
+    audience.audienceMode === 'promotions' &&
+    !(audience.audiencePromotionLabels?.length)
+  ) {
+    errors.value = ['Sélectionnez au moins une promotion ciblée.']
+    return
+  }
+  if (audience.audienceMode === 'students' && !(audience.audienceStudentUserIds?.length)) {
+    errors.value = ['Ajoutez au moins un étudiant ciblé.']
+    return
+  }
+  if (audience.audienceMode === 'faculty' && !audience.audienceFaculty) {
+    errors.value = ['Indiquez la faculté ciblée.']
+    return
+  }
+  const accessCodeExpiresAt =
+    publication.status === 'active'
+      ? computeAccessCodeExpiresAt({
+          availableFrom: data.availableFrom ?? null,
+          availableUntil: data.availableUntil ?? null,
+          durationMinutes: data.durationMinutes,
+        })
+      : null
 
   if (isEditing.value && editId.value) {
-    store.updateEvaluation(editId.value, { ...data, status: asDraft ? 'draft' : 'active' })
+    store.updateEvaluation(editId.value, {
+      ...data,
+      ...publication,
+      ...audience,
+      accessCodeExpiresAt,
+    })
+    if (publication.institutionPublicationPending) {
+      appToast.info('Brouillon enregistré : validation établissement requise pour publier.')
+    }
     router.push(`/teacher/evaluation/${editId.value}`)
     return
   }
 
-  void saveEvaluation(data, asDraft)
+  void saveEvaluation(data, asDraft, publication, audience, accessCodeExpiresAt)
 }
 
-async function saveEvaluation(data: ReturnType<typeof buildData>, asDraft: boolean) {
+async function saveEvaluation(
+  data: ReturnType<typeof buildData>,
+  _asDraft: boolean,
+  publication: ReturnType<typeof buildPublicationPatch> & object,
+  audience: ReturnType<typeof buildAudiencePatch>,
+  accessCodeExpiresAt: string | null,
+) {
   const user = auth.currentUser!
   saving.value = true
   errors.value = []
@@ -464,16 +760,20 @@ async function saveEvaluation(data: ReturnType<typeof buildData>, asDraft: boole
         teacherId: user.id,
         teacherName: `${user.firstName} ${user.lastName}`,
       })
+      store.updateEvaluation(evaluation.id, { ...publication, ...audience, accessCodeExpiresAt })
       await store.syncFromApi()
     } else {
       evaluation = store.createEvaluation({
         ...data,
         teacherId: user.id,
         teacherName: `${user.firstName} ${user.lastName}`,
+        ...publication,
+        ...audience,
+        accessCodeExpiresAt,
       })
-      if (!asDraft) {
-        store.updateEvaluation(evaluation.id, { status: 'active' })
-      }
+    }
+    if (publication.institutionPublicationPending) {
+      appToast.info('Évaluation en brouillon : liée à un établissement en attente de validation.')
     }
     router.push(`/teacher/evaluation/${evaluation.id}`)
   } catch (e) {
@@ -610,8 +910,8 @@ const evaluationTypes = Object.entries(EVALUATION_TYPE_LABELS) as [EvaluationTyp
           </div>
         </label>
 
-        <!-- Salle (optionnel) -->
-        <div class="p-4 border border-line bg-paper-warm space-y-4">
+        <!-- Salle universitaire (optionnel — publication « Libre » uniquement) -->
+        <div v-if="publicationScope === 'open'" class="p-4 border border-line bg-paper-warm space-y-4">
           <label class="flex items-start gap-3 cursor-pointer">
             <input v-model="useClassroom" type="checkbox" class="mt-0.5 w-4 h-4 text-accent" />
             <div>
@@ -780,33 +1080,25 @@ const evaluationTypes = Object.entries(EVALUATION_TYPE_LABELS) as [EvaluationTyp
         </div>
       </AppCard>
 
-      <AppCard :title="isApiEnabled() ? 'Affichage des résultats (application)' : 'Correction et résultats'">
-        <p v-if="isApiEnabled()" class="text-xs text-ink-muted mb-4 pb-3 border-b border-line">
-          Non envoyé au serveur — appliqué dans LawApp lors du passage et de la page résultat.
-        </p>
-        <div class="space-y-4">
-          <p v-if="!isApiEnabled()" class="text-sm text-ink-muted">Mode de correction après passage de l'épreuve.</p>
-          <div class="grid sm:grid-cols-2 gap-3">
-            <label
-              class="flex items-start gap-3 p-4 border cursor-pointer transition-colors"
-              :class="correctionMode === 'auto' ? 'border-accent bg-accent-light' : 'border-line hover:bg-paper-warm'"
+      <AppDisclosure title="Correction & résultats" hint="Auto, PDF, seuil de réussite…">
+        <div class="space-y-4 pt-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              class="min-h-11 p-3 border text-left text-sm"
+              :class="correctionMode === 'auto' ? 'border-accent bg-accent-light/40' : 'border-line'"
+              @click="correctionMode = 'auto'"
             >
-              <input v-model="correctionMode" type="radio" value="auto" class="mt-1 w-4 h-4 text-accent" />
-              <div>
-                <p class="text-sm font-medium text-ink">Correction automatique</p>
-                <p class="text-xs text-ink-muted mt-1">QCM et vrai/faux corrigés automatiquement ; ouvertes notées manuellement par l’enseignant.</p>
-              </div>
-            </label>
-            <label
-              class="flex items-start gap-3 p-4 border cursor-pointer transition-colors"
-              :class="correctionMode === 'manual' ? 'border-accent bg-accent-light' : 'border-line hover:bg-paper-warm'"
+              Automatique (QCM)
+            </button>
+            <button
+              type="button"
+              class="min-h-11 p-3 border text-left text-sm"
+              :class="correctionMode === 'manual' ? 'border-accent bg-accent-light/40' : 'border-line'"
+              @click="correctionMode = 'manual'"
             >
-              <input v-model="correctionMode" type="radio" value="manual" class="mt-1 w-4 h-4 text-accent" />
-              <div>
-                <p class="text-sm font-medium text-ink">Correction manuelle (PDF)</p>
-                <p class="text-xs text-ink-muted mt-1">PDF de correction publié depuis la fiche évaluation.</p>
-              </div>
-            </label>
+              PDF manuel
+            </button>
           </div>
           <AppInput v-model="passingScore" label="Seuil de réussite (%)" type="number" hint="Affichage local sur la page résultat" />
           <label v-if="correctionMode === 'auto'" class="flex items-center gap-3 cursor-pointer">
@@ -822,13 +1114,183 @@ const evaluationTypes = Object.entries(EVALUATION_TYPE_LABELS) as [EvaluationTyp
             <span class="text-sm text-ink">Afficher le score dès la soumission</span>
           </label>
         </div>
+      </AppDisclosure>
+
+      <AppCard title="Publication">
+        <p class="text-sm text-ink-muted mb-4">
+          Chaque évaluation a un <strong class="font-medium text-ink">code unique</strong>, valable
+          jusqu’à la fin du délai. Partagez le code ou le lien — c’est le plus simple.
+        </p>
+        <p class="text-xs text-ink-muted mb-3">Type de publication</p>
+        <AppChoicePills v-model="publicationScope" :options="publicationScopeOptions" />
+        <div
+          v-if="publicationScope === 'institution'"
+          class="mt-4 p-4 border border-line bg-paper-warm space-y-4"
+        >
+          <p class="text-sm text-ink-muted">
+            <strong class="font-medium text-ink">Examens d’établissement</strong> — vous
+            <strong class="font-medium text-ink">sélectionnez</strong> université, faculté et promotion.
+            Ces listes sont gérées par l’<strong>administration</strong> (pas de création ici).
+          </p>
+          <AppSelect
+            v-model="linkedInstitutionKey"
+            label="Université"
+            :options="universitySelectOptions"
+            placeholder="Choisir…"
+            required
+          />
+          <AppSelect
+            v-model="audienceFaculty"
+            label="Faculté"
+            :options="facultyOptions"
+            placeholder="Droit, Informatique…"
+            required
+          />
+          <div>
+            <p class="text-xs text-ink-muted mb-2">Promotion(s) — référentiel admin</p>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="p in promotionCatalogLabels"
+                :key="p"
+                type="button"
+                class="min-h-[2.75rem] min-w-[2.75rem] px-3 text-sm border transition-colors"
+                :class="
+                  selectedPromotions.includes(p)
+                    ? 'border-accent bg-accent-light/40 text-ink font-medium'
+                    : 'border-line text-ink-muted'
+                "
+                @click="togglePromotion(p)"
+              >
+                {{ p }}
+              </button>
+            </div>
+          </div>
+          <p class="text-xs text-ink-faint">
+            Visible pour les étudiants au parcours validé (faculté + promo). Brouillon si votre profil
+            université n’est pas encore validé.
+          </p>
+        </div>
+
+        <div
+          v-if="publicationScope === 'cohort'"
+          class="mt-4 p-4 border border-accent/25 bg-accent-light/15 space-y-4"
+        >
+          <p class="text-sm text-ink-muted">
+            <strong class="font-medium text-ink">Formation / indépendant</strong> — hors catalogue public.
+            Créez la salle <strong class="font-medium text-ink">en même temps</strong> que l’évaluation, puis
+            partagez le lien d’invitation (Mes salles).
+          </p>
+          <AppChoicePills v-model="cohortRoomMode" :options="cohortRoomModeOptions" />
+          <template v-if="cohortRoomMode === 'new'">
+            <AppInput
+              v-model="cohortNewName"
+              label="Nom de la salle / cohorte"
+              placeholder="Atelier droit social — mars 2026"
+              required
+            />
+            <AppTextarea
+              v-model="cohortNewDesc"
+              label="Description (optionnel)"
+              placeholder="Public, objectifs…"
+              :rows="2"
+            />
+          </template>
+          <template v-else>
+            <AppSelect
+              v-model="courseIdModel"
+              label="Salle formation existante"
+              :options="classroomOptions"
+              placeholder="Choisir…"
+            />
+            <p v-if="!classroomOptions.length" class="text-xs text-ink-muted">
+              Aucune salle « Formation » — utilisez « Créer la salle » ci-dessus.
+            </p>
+          </template>
+        </div>
+
+        <div v-if="publicationScope === 'open'" class="mt-5 pt-4 border-t border-line">
+          <AppSelect
+            v-model="audienceMode"
+            label="Affichage auto pour les étudiants (optionnel)"
+            :options="audienceModeOptions"
+            hint="Sinon, ils rejoignent avec le code — aucune config obligatoire."
+          />
+
+          <div v-if="audienceMode === 'faculty' || audienceMode === 'promotions'" class="mt-3 space-y-3">
+            <AppSelect
+              v-model="audienceInstitutionKey"
+              label="Établissement"
+              :options="institutionOptions"
+              placeholder="UCC…"
+            />
+          </div>
+          <AppSelect
+            v-if="audienceMode === 'faculty'"
+            v-model="audienceFaculty"
+            class="mt-3"
+            label="Faculté"
+            :options="facultyOptions"
+            placeholder="Droit"
+          />
+          <div v-if="audienceMode === 'promotions'" class="mt-3">
+            <p class="text-xs text-ink-muted mb-2">Promotions concernées</p>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="p in promotionChoices"
+                :key="p"
+                type="button"
+                class="min-h-[2.75rem] min-w-[2.75rem] px-3 text-sm border transition-colors"
+                :class="
+                  selectedPromotions.includes(p)
+                    ? 'border-accent bg-accent-light/40 text-ink font-medium'
+                    : 'border-line text-ink-muted'
+                "
+                @click="togglePromotion(p)"
+              >
+                {{ p }}
+              </button>
+            </div>
+          </div>
+          <p v-if="audienceMode === 'classroom'" class="mt-3 text-sm text-ink-muted">
+            Liez une salle à l’étape <strong>Informations</strong>.
+          </p>
+          <div v-if="audienceMode === 'students'" class="mt-3 space-y-3">
+            <AppInput
+              v-model="studentSearchQuery"
+              label="Nom ou e-mail"
+              placeholder="Rechercher…"
+              @keyup.enter="searchTargetStudents"
+            />
+            <AppButton type="button" variant="outline" class="w-full sm:w-auto" @click="searchTargetStudents">
+              Ajouter un étudiant
+            </AppButton>
+            <ul v-if="studentSearchResults.length" class="border border-line divide-y max-h-40 overflow-y-auto">
+              <li v-for="row in studentSearchResults" :key="row.id">
+                <button
+                  type="button"
+                  class="w-full text-left px-3 py-3 text-sm hover:bg-paper-warm min-h-[2.75rem]"
+                  @click="addTargetStudent(row.id)"
+                >
+                  {{ row.label }}
+                </button>
+              </li>
+            </ul>
+            <div v-if="targetStudentIds.length" class="flex flex-wrap gap-2">
+              <span
+                v-for="sid in targetStudentIds"
+                :key="sid"
+                class="inline-flex items-center gap-1 px-2 py-1.5 text-xs bg-paper-warm border border-line min-h-[2.25rem]"
+              >
+                {{ auth.getUserById(sid)?.firstName ?? sid }}
+                <button type="button" class="text-danger px-1" aria-label="Retirer" @click="removeTargetStudent(sid)">×</button>
+              </span>
+            </div>
+          </div>
+        </div>
       </AppCard>
 
-      <AppCard title="Paramètres anti-triche">
-        <p v-if="isApiEnabled()" class="text-xs text-ink-muted mb-4 pb-3 border-b border-line">
-          Les options cochées seront appliquées pendant l’épreuve (anti-triche et dépôt document).
-        </p>
-        <div class="grid sm:grid-cols-2 gap-4">
+      <AppDisclosure title="Sécurité pendant l’examen" hint="Anti-triche, plein écran…">
+        <div class="grid sm:grid-cols-2 gap-3 pt-3">
           <label class="flex items-center gap-3 p-3 border border-line cursor-pointer hover:bg-paper-warm">
             <input v-model="failOnTabSwitch" type="checkbox" class="w-4 h-4 text-accent" />
             <div>
@@ -874,7 +1336,7 @@ const evaluationTypes = Object.entries(EVALUATION_TYPE_LABELS) as [EvaluationTyp
           />
           <AppInput v-model="maxViolations" label="Violations max." type="number" />
         </div>
-      </AppCard>
+      </AppDisclosure>
 
       <AppCard v-if="useClassroom && courseId" title="Accès et présence">
         <div class="space-y-4">
@@ -903,8 +1365,8 @@ const evaluationTypes = Object.entries(EVALUATION_TYPE_LABELS) as [EvaluationTyp
         </div>
       </AppCard>
 
-      <AppCard title="Récapitulatif">
-        <dl class="space-y-3 text-sm">
+      <AppDisclosure title="Récapitulatif" hint="Vérifier avant de publier">
+        <dl class="space-y-3 text-sm pt-3">
           <div class="flex justify-between gap-4 border-b border-line pb-3">
             <dt class="text-ink-muted">Titre</dt>
             <dd class="font-medium text-ink text-right">{{ title }}</dd>
@@ -932,6 +1394,18 @@ const evaluationTypes = Object.entries(EVALUATION_TYPE_LABELS) as [EvaluationTyp
             </dd>
           </div>
           <div class="flex justify-between gap-4 border-t border-line pt-3">
+            <dt class="text-ink-muted">Publication</dt>
+            <dd class="text-ink text-right">
+              {{
+                publicationScope === 'open'
+                  ? 'Libre'
+                  : linkedInstitutionKey
+                    ? institutionLabelForKey(linkedInstitutionKey)
+                    : 'Établissement à choisir'
+              }}
+            </dd>
+          </div>
+          <div class="flex justify-between gap-4 border-t border-line pt-3">
             <dt class="text-ink-muted">Correction</dt>
             <dd class="text-ink text-right">
               {{ correctionMode === 'auto' ? 'Automatique' : 'PDF manuel' }}
@@ -942,7 +1416,7 @@ const evaluationTypes = Object.entries(EVALUATION_TYPE_LABELS) as [EvaluationTyp
             <dd class="text-ink text-right truncate max-w-[12rem]">{{ evaluationAnnexName }}</dd>
           </div>
         </dl>
-      </AppCard>
+      </AppDisclosure>
     </div>
       </div>
     </Transition>
@@ -953,22 +1427,30 @@ const evaluationTypes = Object.entries(EVALUATION_TYPE_LABELS) as [EvaluationTyp
       </ul>
     </div>
 
-    <div class="flex flex-col sm:flex-row gap-3 mt-8">
-      <AppButton v-if="step > 0" variant="outline" @click="prevStep">
+    <div
+      class="create-eval-actions flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 mt-8 pb-[env(safe-area-inset-bottom)] sm:pb-0 sticky bottom-0 sm:static z-10 bg-paper/95 backdrop-blur-sm border-t border-line sm:border-0 pt-3 sm:pt-0 -mx-4 px-4 sm:mx-0 sm:px-0"
+    >
+      <AppButton v-if="step > 0" variant="outline" class="w-full sm:w-auto min-h-11" @click="prevStep">
         <ChevronLeft class="w-4 h-4" />
         Retour
       </AppButton>
-      <div class="flex-1" />
-      <AppButton v-if="step < steps.length - 1" @click="nextStep">
+      <div class="hidden sm:block flex-1" />
+      <AppButton v-if="step < steps.length - 1" class="w-full sm:w-auto min-h-11" @click="nextStep">
         Continuer
         <ChevronRight class="w-4 h-4" />
       </AppButton>
       <template v-if="step === steps.length - 1">
-        <AppButton v-if="!isApiEnabled()" variant="outline" :loading="saving" @click="save(true)">
-          Enregistrer brouillon
+        <AppButton
+          v-if="!isApiEnabled()"
+          variant="outline"
+          class="w-full sm:w-auto min-h-11"
+          :loading="saving"
+          @click="save(true)"
+        >
+          Brouillon
         </AppButton>
-        <AppButton :loading="saving" @click="save(false)">
-          {{ isApiEnabled() ? 'Publier sur le serveur' : 'Publier l\'évaluation' }}
+        <AppButton class="w-full sm:w-auto min-h-11" :loading="saving" @click="save(false)">
+          {{ isApiEnabled() ? 'Publier' : 'Publier' }}
         </AppButton>
       </template>
     </div>

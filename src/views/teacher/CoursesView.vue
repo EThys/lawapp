@@ -10,6 +10,10 @@ import AppButton from '@/components/ui/AppButton.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
+import AppChoicePills from '@/components/ui/AppChoicePills.vue'
+import AppBadge from '@/components/ui/AppBadge.vue'
+import type { ClassroomKind } from '@/types/course'
+import { classroomKindHint, classroomKindLabel, getClassroomKind } from '@/utils/classroomKind'
 import AppDataTable from '@/components/ui/AppDataTable.vue'
 import AppShimmerList from '@/components/loading/AppShimmerList.vue'
 import { Users, ArrowLeft, AlertCircle, Plus, Eye } from '@lucide/vue'
@@ -22,6 +26,12 @@ const classroomStore = useClassroomStore()
 
 const name = ref('Ma salle')
 const description = ref('')
+const roomKind = ref<ClassroomKind>('university_class')
+
+const roomKindOptions = [
+  { value: 'university_class' as const, label: 'Université', hint: 'Cours officiel' },
+  { value: 'training_cohort' as const, label: 'Formation', hint: 'Lien privé' },
+]
 const error = ref('')
 const creating = ref(false)
 const ready = ref(!isApiEnabled())
@@ -42,6 +52,7 @@ const localCourses = computed(() =>
 
 const classroomColumns = [
   { key: 'name', label: 'Salle' },
+  { key: 'kind', label: 'Type', hideOnMobile: true },
   { key: 'description', label: 'Description', hideOnMobile: true },
   { key: 'code', label: 'Code' },
   { key: 'actions', label: 'Actions', class: 'text-right whitespace-nowrap' },
@@ -49,16 +60,23 @@ const classroomColumns = [
 
 const classroomRows = computed(() => {
   if (apiMode.value) {
-    return classroomStore.myClassrooms.map((c) => ({
-      id: String(c.id),
-      name: c.name?.trim() || `Salle #${c.id}`,
-      description: c.description?.trim() || '—',
-      code: `CL${c.id}`,
-    }))
+    return classroomStore.myClassrooms.map((c) => {
+      const kind = getClassroomKind(c.id)
+      return {
+        id: String(c.id),
+        name: c.name?.trim() || `Salle #${c.id}`,
+        kind: classroomKindLabel(kind),
+        kindVariant: kind === 'training_cohort' ? 'brand' : 'muted',
+        description: c.description?.trim() || '—',
+        code: `CL${c.id}`,
+      }
+    })
   }
   return localCourses.value.map((c) => ({
     id: c.id,
     name: c.name,
+    kind: classroomKindLabel(c.roomKind ?? 'university_class'),
+    kindVariant: c.roomKind === 'training_cohort' ? 'brand' : 'muted',
     description: c.subject || '—',
     code: c.enrollmentCode,
   }))
@@ -81,7 +99,7 @@ async function createClassroom() {
   creating.value = true
 
   if (apiMode.value) {
-    const result = await classroomStore.create(name.value, description.value)
+    const result = await classroomStore.create(name.value, description.value, roomKind.value)
     creating.value = false
     if (!result.ok) {
       error.value = result.error
@@ -99,6 +117,7 @@ async function createClassroom() {
     teacherName: `${auth.currentUser.firstName} ${auth.currentUser.lastName}`,
     name: name.value.trim() || 'Ma salle',
     subject: description.value.trim() || 'Général',
+    roomKind: roomKind.value,
   })
   creating.value = false
   appToast.success(`Salle « ${cls.name} » créée.`)
@@ -122,7 +141,7 @@ async function createClassroom() {
         <p class="label-caps mb-2">Enseignant</p>
         <h1 class="font-display text-3xl text-ink tracking-tight">Mes salles</h1>
         <p class="mt-1 text-sm text-ink-muted">
-          Plusieurs salles possibles. Les étudiants sont rattachés à la salle choisie à l’ajout.
+          Salles universitaires ou <strong class="font-medium text-ink">formations</strong> (lien privé, hors catalogue public).
         </p>
       </div>
       <AppButton size="sm" @click="showCreate = !showCreate">
@@ -133,6 +152,11 @@ async function createClassroom() {
 
     <AppCard v-if="showCreate" class="mb-8" title="Nouvelle salle" subtitle="Création" :hover="false">
       <div class="space-y-4 max-w-md">
+        <div>
+          <p class="text-xs text-ink-muted mb-2">Type de salle</p>
+          <AppChoicePills v-model="roomKind" :options="roomKindOptions" />
+          <p class="mt-2 text-xs text-ink-faint">{{ classroomKindHint(roomKind) }}</p>
+        </div>
         <template v-if="apiMode">
           <AppInput v-model="name" label="Nom de la classe" required placeholder="L2 Droit" />
           <AppTextarea
@@ -178,6 +202,11 @@ async function createClassroom() {
       >
         <template #cell-name="{ row }">
           <p class="font-medium text-ink">{{ row.name }}</p>
+        </template>
+        <template #cell-kind="{ row }">
+          <AppBadge :variant="row.kindVariant === 'brand' ? 'brand' : 'muted'">
+            {{ row.kind }}
+          </AppBadge>
         </template>
         <template #cell-code="{ row }">
           <span class="font-mono text-accent font-semibold">{{ row.code }}</span>

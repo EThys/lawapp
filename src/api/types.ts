@@ -93,6 +93,45 @@ export interface VerifyOtpRequest {
   code: string
 }
 
+export interface PasswordResetRequest {
+  identifier: string
+  code: string
+  newPassword: string
+  confirmPassword: string
+}
+
+export interface TeacherAffiliationRequest {
+  etablissementId: number
+}
+
+export interface AcademicPathRequest {
+  etablissementId?: number
+  facultyId?: number
+  facultyName?: string
+  promotionId?: number
+  classroomId?: number
+  matricule?: string
+}
+
+export interface AffiliationRejectRequest {
+  reason?: string
+}
+
+export interface FacultyRecord {
+  id?: number
+  name?: string
+  etablissementId?: number
+  active?: boolean
+}
+
+export interface ResolveAccessCodeResult {
+  evaluationId?: number
+  canJoin?: boolean
+  blockReasonCode?: string
+  message?: string
+  [key: string]: unknown
+}
+
 export interface RefreshTokenRequest {
   refreshToken: string
 }
@@ -383,6 +422,11 @@ export interface Etablissement {
   name?: string
   active?: boolean
   isActive?: boolean
+  /** Super admin : visible dans GET public/etablissements */
+  publiclyListed?: boolean
+  /** Super admin : sélectionnable (affiliation, éval université) */
+  partnerEnabled?: boolean
+  slug?: string
 }
 
 /** OpenAPI matiere-controller */

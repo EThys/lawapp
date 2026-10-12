@@ -43,6 +43,12 @@ import {
   Users,
   Share2,
 } from '@lucide/vue'
+import {
+  canPublishInstitutionEvaluation,
+  evaluationStatusDisplay,
+} from '@/utils/institutionAffiliation'
+import { accessCodeExpiryLabel, describeEvaluationAudience } from '@/utils/evaluationAudience'
+import { appToast } from '@/utils/toast'
 
 const route = useRoute()
 const router = useRouter()
@@ -266,8 +272,24 @@ function copyLink() {
 
 function toggleStatus() {
   if (!evaluation.value) return
+  if (evaluation.value.status !== 'active') {
+    if (
+      !canPublishInstitutionEvaluation(
+        evaluation.value,
+        auth.currentUser?.teacherInstitutionAffiliation,
+      )
+    ) {
+      appToast.warning(
+        'Cette évaluation liée reste en brouillon tant que votre profil enseignant n’est pas validé par l’établissement.',
+      )
+      return
+    }
+  }
   const newStatus = evaluation.value.status === 'active' ? 'closed' : 'active'
-  store.updateEvaluation(localEvalId.value, { status: newStatus })
+  store.updateEvaluation(localEvalId.value, {
+    status: newStatus,
+    institutionPublicationPending: newStatus === 'active' ? false : evaluation.value.institutionPublicationPending,
+  })
 }
 
 function publishOrShare() {
@@ -393,13 +415,31 @@ watch(
       Retour
     </RouterLink>
 
+    <AppCard
+      v-if="evaluation.institutionPublicationPending"
+      class="mb-6 p-4 border-warning/30 bg-warning-bg/40"
+      :hover="false"
+    >
+      <p class="text-sm text-ink">
+        Évaluation <strong>liée à {{ evaluation.linkedInstitutionLabel ?? 'un établissement' }}</strong>.
+        Elle reste en <strong>brouillon</strong> jusqu’à validation de votre statut enseignant auprès de
+        cet établissement. Vos évaluations libres ne sont pas concernées.
+      </p>
+      <RouterLink to="/teacher/profile" class="inline-block mt-3 text-sm font-medium text-accent hover:underline">
+        Voir mon profil et ma demande d’affiliation →
+      </RouterLink>
+    </AppCard>
+
     <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 mb-8">
       <div>
         <div class="flex items-center gap-2 flex-wrap mb-2">
           <h1 class="text-3xl font-semibold text-surface-900">{{ evaluation.title }}</h1>
           <AppBadge variant="brand">{{ EVALUATION_TYPE_LABELS[evaluation.type] }}</AppBadge>
           <AppBadge :variant="evaluation.status === 'active' ? 'success' : evaluation.status === 'closed' ? 'danger' : 'muted'">
-            {{ evaluation.status === 'active' ? 'Active' : evaluation.status === 'closed' ? 'Fermée' : 'Brouillon' }}
+            {{ evaluationStatusDisplay(evaluation) }}
+          </AppBadge>
+          <AppBadge v-if="evaluation.publicationScope === 'institution'" variant="brand">
+            {{ evaluation.linkedInstitutionLabel ?? 'Établissement' }}
           </AppBadge>
           <AppBadge
             v-if="evaluation.availableFrom && !isEvaluationAvailable(evaluation)"
@@ -421,6 +461,12 @@ watch(
           </AppBadge>
         </div>
         <p class="text-surface-500">{{ evaluation.subject }} · {{ evaluation.teacherName }}</p>
+        <p class="text-sm text-ink-muted mt-2">
+          {{ describeEvaluationAudience(evaluation) }}
+          <span v-if="accessCodeExpiryLabel(evaluation)">
+            · Code valide jusqu’au {{ accessCodeExpiryLabel(evaluation) }}
+          </span>
+        </p>
         <p v-if="evaluation.description" class="text-surface-600 mt-2">{{ evaluation.description }}</p>
       </div>
 

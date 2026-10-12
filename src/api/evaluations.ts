@@ -11,6 +11,7 @@ import type {
   EvaluationSubmissionAnswerDetail,
   GradeSubmissionRequest,
   ApiMessageResponse,
+  ResolveAccessCodeResult,
 } from '@/api/types'
 
 /** Extrait la liste d'évaluations depuis les wrappers backend (`session`, `data`, …). */
@@ -141,6 +142,49 @@ function toBackendEvaluationBody(payload: EvaluationRequest): Record<string, unk
 export async function listAnswerableEvaluations(): Promise<EvaluationAnswerableSummary[]> {
   const data = await apiGet<unknown>('protected/evaluations/repondre')
   return unwrapList<EvaluationAnswerableSummary>(data).filter((e) => e && typeof e.id === 'number')
+}
+
+/** GET /api/v1/protected/evaluations/for-me — épreuves ciblées (parcours verified). */
+export async function listForMeEvaluations(): Promise<EvaluationAnswerableSummary[]> {
+  const data = await apiGet<unknown>('protected/evaluations/for-me')
+  return unwrapList<EvaluationAnswerableSummary>(data).filter((e) => e && typeof e.id === 'number')
+}
+
+function normalizeResolveAccessCode(data: unknown): ResolveAccessCodeResult {
+  const obj = unwrapObject<Record<string, unknown>>(data) ?? {}
+  const evaluationIdRaw =
+    obj.evaluationId ?? obj.id ?? obj.evaluation_id ?? obj.evalId
+  const evaluationId =
+    typeof evaluationIdRaw === 'number'
+      ? evaluationIdRaw
+      : Number.parseInt(String(evaluationIdRaw ?? ''), 10)
+  const canJoin =
+    typeof obj.canJoin === 'boolean'
+      ? obj.canJoin
+      : typeof obj.can_join === 'boolean'
+        ? obj.can_join
+        : undefined
+  const blockReasonCode =
+    (typeof obj.blockReasonCode === 'string' && obj.blockReasonCode) ||
+    (typeof obj.code === 'string' && obj.code) ||
+    (typeof obj.reasonCode === 'string' && obj.reasonCode) ||
+    undefined
+  const message = typeof obj.message === 'string' ? obj.message : undefined
+  return {
+    ...obj,
+    evaluationId: Number.isFinite(evaluationId) && evaluationId > 0 ? evaluationId : undefined,
+    canJoin,
+    blockReasonCode,
+    message,
+  }
+}
+
+/** POST /api/v1/protected/evaluations/resolve-code */
+export async function resolveAccessCode(accessCode: string): Promise<ResolveAccessCodeResult> {
+  const data = await apiPost<unknown>('protected/evaluations/resolve-code', {
+    accessCode: accessCode.trim(),
+  })
+  return normalizeResolveAccessCode(data)
 }
 
 /**

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Course, AttendanceRecord, PresenceTunnel } from '@/types/course'
+import type { ClassroomKind, Course, AttendanceRecord, PresenceTunnel } from '@/types/course'
 import type { NetworkFingerprint } from '@/utils/localNetwork'
 import { verifyLocalNetwork } from '@/utils/localNetwork'
 import { useNotificationStore } from '@/stores/notifications'
@@ -352,15 +352,42 @@ export const useCourseStore = defineStore('courses', () => {
     return { ok: true, courseName: course.name }
   }
 
+  function markPresenceFromQrSession(
+    courseId: string,
+    studentUserId: string,
+    presenceSessionId: string,
+  ): { ok: true } | { ok: false; error: string } {
+    const course = getById(courseId)
+    if (!course) return { ok: false, error: 'Classe introuvable.' }
+    const day = getTodayDateString()
+    const existing = attendance.value.find(
+      (a) => a.courseId === courseId && a.studentUserId === studentUserId && a.date === day,
+    )
+    if (existing) return { ok: false, error: 'Présence déjà enregistrée.' }
+
+    attendance.value.push({
+      id: generateId(),
+      courseId,
+      studentUserId,
+      presenceSessionId,
+      date: day,
+      markedAt: new Date().toISOString(),
+    })
+    persistAttendance()
+    return { ok: true }
+  }
+
   function createCourse(data: {
     teacherId: string
     teacherName: string
     name: string
     subject: string
+    roomKind?: ClassroomKind
   }): Course {
     const now = new Date().toISOString()
     const course: Course = {
       id: generateId(),
+      roomKind: data.roomKind ?? 'university_class',
       teacherId: data.teacherId,
       teacherName: data.teacherName,
       name: data.name.trim(),
@@ -546,5 +573,6 @@ export const useCourseStore = defineStore('courses', () => {
     getAttendanceHistoryForTeacher,
     getAttendanceHistoryForStudent,
     getAbsenceDaysForStudent,
+    markPresenceFromQrSession,
   }
 })

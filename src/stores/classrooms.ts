@@ -9,9 +9,10 @@ import {
   listClassroomUsers,
 } from '@/api/classrooms'
 import type { Classroom, ClassroomUser } from '@/api/types'
-import type { Course } from '@/types/course'
+import type { ClassroomKind, Course } from '@/types/course'
 import { extractApiError } from '@/api/client'
 import { isApiEnabled } from '@/config/features'
+import { getClassroomKind, setClassroomKind } from '@/utils/classroomKind'
 
 export function mapClassroomToCourse(
   classroom: Classroom,
@@ -26,6 +27,7 @@ export function mapClassroomToCourse(
     teacherName,
     name: classroom.name?.trim() || `Classe #${classroom.id}`,
     subject: classroom.description?.trim() || 'Général',
+    roomKind: getClassroomKind(classroom.id),
     enrollmentCode: `CL${classroom.id}`,
     enrollmentPublishedAt: classroom.createdAt ?? new Date().toISOString(),
     enrollmentSharedAt: null,
@@ -100,6 +102,7 @@ export const useClassroomStore = defineStore('classrooms', () => {
   async function create(
     name: string,
     description?: string,
+    roomKind: ClassroomKind = 'university_class',
   ): Promise<{ ok: true; classroom: Classroom } | { ok: false; error: string }> {
     if (!isApiEnabled()) return { ok: false, error: 'Mode API requis.' }
     const trimmed = name.trim()
@@ -124,6 +127,7 @@ export const useClassroomStore = defineStore('classrooms', () => {
       if (!created?.id) {
         return { ok: false, error: 'Classe créée, mais réponse serveur incomplète.' }
       }
+      setClassroomKind(created.id, roomKind)
       current.value = created
       return { ok: true, classroom: created }
     } catch (e) {

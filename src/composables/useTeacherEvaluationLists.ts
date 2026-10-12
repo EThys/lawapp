@@ -7,6 +7,7 @@ import { useServerShimmer } from '@/composables/useServerShimmer'
 import { EVALUATION_TYPE_LABELS, SESSION_STATUS_LABELS, type EvaluationStatus } from '@/types'
 import { formatDate, formatDateOnly, formatMinutes } from '@/utils/helpers'
 import { submissionSessionId } from '@/utils/evaluationApiMapper'
+import { evaluationStatusDisplay } from '@/utils/institutionAffiliation'
 
 export function useTeacherEvaluationLists() {
   const store = useEvaluationStore()
@@ -36,8 +37,9 @@ export function useTeacherEvaluationLists() {
       ).length,
       title: evaluation.title,
       type: EVALUATION_TYPE_LABELS[evaluation.type],
-      status: statusLabel(evaluation.status),
+      status: evaluationStatusDisplay(evaluation),
       statusKey: evaluation.status,
+      institutionPending: evaluation.institutionPublicationPending === true,
       details: `${evaluation.subject} · ${formatMinutes(evaluation.durationMinutes)} · ${evaluation.questions.length} q.`,
       subject: evaluation.subject,
       durationMinutes: evaluation.durationMinutes,
@@ -109,11 +111,6 @@ export function useTeacherEvaluationLists() {
 
   function statusVariant(status: EvaluationStatus) {
     const map = { draft: 'muted' as const, active: 'success' as const, closed: 'danger' as const }
-    return map[status]
-  }
-
-  function statusLabel(status: EvaluationStatus) {
-    const map = { draft: 'Brouillon', active: 'Active', closed: 'Fermée' }
     return map[status]
   }
 
