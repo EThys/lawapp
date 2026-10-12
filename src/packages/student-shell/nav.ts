@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   History,
   CalendarCheck,
+  CalendarDays,
   UserPlus,
 } from '@lucide/vue'
 
@@ -26,6 +27,7 @@ export interface StudentNavMeta {
 export const STUDENT_PAGE_TITLES: StudentNavMeta[] = [
   { path: '/student', title: 'Tableau de bord', exact: true },
   { path: '/student/history', title: 'Mon historique' },
+  { path: '/student/calendar', title: 'Calendrier des épreuves' },
   { path: '/student/attendance', title: 'Présences' },
   { path: '/student/profile', title: 'Profil étudiant' },
   { path: '/join/group', title: 'Rejoindre une salle' },
@@ -55,6 +57,12 @@ export function buildStudentMenuItems(): StudentMenuItem[] {
       label: 'Mon historique',
       to: '/student/history',
       icon: { component: History },
+    },
+    {
+      id: 'calendar',
+      label: 'Calendrier',
+      to: '/student/calendar',
+      icon: { component: CalendarDays },
     },
     {
       id: 'attendance',
