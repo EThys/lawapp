@@ -8,7 +8,6 @@ import { useVerificationStore } from '@/stores/verification'
 
 import { useAuthStore } from '@/stores/auth'
 
-import { TOKEN_KEY } from '@/config/features'
 
 import AuthLayout from '@/components/layout/AuthLayout.vue'
 
@@ -53,16 +52,6 @@ const error = ref('')
 const success = ref('')
 
 const loading = ref(false)
-
-
-
-function applyTokenFromOtpResponse(res: Record<string, string | undefined>) {
-
-  const token = res.token ?? res.accessToken ?? res.access_token
-
-  if (token) localStorage.setItem(TOKEN_KEY, token)
-
-}
 
 
 
@@ -114,9 +103,7 @@ async function handleVerifyCode() {
 
   try {
 
-    const otpRes = await verification.confirmCode(code.value, { keepIdentifier: true })
-
-    applyTokenFromOtpResponse(otpRes as Record<string, string | undefined>)
+    await verification.verifyPasswordResetCode(code.value, { keepIdentifier: true })
 
     step.value = 1
 
@@ -182,7 +169,12 @@ async function handleResetPassword() {
 
   try {
 
-    const resetRes = await auth.resetPasswordAfterOtp(newPassword.value, confirmPassword.value)
+    const resetRes = await auth.resetPasswordAfterOtp(
+      verification.identifier,
+      code.value,
+      newPassword.value,
+      confirmPassword.value,
+    )
 
     if (!resetRes.ok) {
 
@@ -194,15 +186,17 @@ async function handleResetPassword() {
 
 
 
-    success.value = resetRes.message ?? 'Mot de passe mis à jour. Vous pouvez vous connecter.'
-
+    const loginEmail = verification.identifier.trim()
+    const message =
+      resetRes.message ?? 'Mot de passe mis à jour. Connectez-vous avec votre nouveau mot de passe.'
     verification.setIdentifier('')
-
-    setTimeout(() => {
-
-      void router.push({ path: '/login', query: { message: success.value } })
-
-    }, 1200)
+    await router.replace({
+      path: '/login',
+      query: {
+        message,
+        ...(loginEmail ? { email: loginEmail } : {}),
+      },
+    })
 
   } catch {
 
@@ -240,7 +234,7 @@ async function handleResend() {
 
   try {
 
-    await verification.sendCode()
+    await verification.sendPasswordResetCode()
 
   } catch {
 
@@ -262,7 +256,7 @@ async function handleResend() {
 
       <p class="label-caps mb-3">Nouveau mot de passe</p>
 
-      <h1 class="font-display text-3xl text-ink tracking-tight">
+      <h1 class="font-display text-ink tracking-tight">
 
         {{ step === 0 ? 'Vérifier le code' : 'Choisir un mot de passe' }}
 

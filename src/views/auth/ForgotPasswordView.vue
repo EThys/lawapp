@@ -33,7 +33,7 @@ async function handleSubmit() {
   loading.value = true
   verification.setIdentifier(value)
   try {
-    await verification.sendCode()
+    await verification.sendPasswordResetCode()
     await router.push({ path: '/reset-password', query: { email: value } })
   } catch {
     error.value = verification.error ?? 'Impossible d\'envoyer le code.'
@@ -47,7 +47,7 @@ async function handleSubmit() {
   <AuthLayout>
     <div class="mb-10">
       <p class="label-caps mb-3">Mot de passe oublié</p>
-      <h1 class="font-display text-3xl text-ink tracking-tight">Réinitialiser l'accès</h1>
+      <h1 class="font-display text-ink tracking-tight">Réinitialiser l'accès</h1>
       <p class="mt-2 text-sm text-ink-muted leading-relaxed">
         Nous enverrons un code de vérification à votre adresse e-mail.
       </p>

@@ -6,7 +6,9 @@ const REGISTRATION_ROLE_KEY = 'lawapp_registration_role'
 
 export interface PendingRegistrationRole {
   email: string
-  role: UserRole
+  /** @deprecated préférer `roles` */
+  role?: UserRole
+  roles?: UserRole[]
 }
 
 export interface PendingLoginCredentials {
@@ -69,12 +71,24 @@ export function clearPendingVerification() {
   }
 }
 
-/** Qualité choisie à l'inscription (session) — jusqu'à création du profil API. */
-export function persistRegistrationRole(email: string, role: UserRole) {
+function normalizeRegistrationRoles(parsed: PendingRegistrationRole): UserRole[] {
+  const fromList = (parsed.roles ?? []).filter(
+    (r): r is UserRole => r === 'teacher' || r === 'student',
+  )
+  if (fromList.length) return [...new Set(fromList)]
+  if (parsed.role === 'teacher' || parsed.role === 'student') return [parsed.role]
+  return []
+}
+
+/** Qualité(s) choisie(s) à l'inscription — jusqu'à création des profils métier. */
+export function persistRegistrationRoles(email: string, roles: UserRole[]) {
+  const unique = [...new Set(roles.filter((r) => r === 'teacher' || r === 'student'))]
+  if (!unique.length) return
   try {
     const payload: PendingRegistrationRole = {
       email: email.trim().toLowerCase(),
-      role,
+      roles: unique,
+      role: unique.length === 1 ? unique[0] : undefined,
     }
     sessionStorage.setItem(REGISTRATION_ROLE_KEY, JSON.stringify(payload))
   } catch {
@@ -82,18 +96,39 @@ export function persistRegistrationRole(email: string, role: UserRole) {
   }
 }
 
-export function readPendingRegistrationRole(email?: string | null): UserRole | null {
+/** @deprecated utiliser `persistRegistrationRoles` */
+export function persistRegistrationRole(email: string, role: UserRole) {
+  persistRegistrationRoles(email, [role])
+}
+
+export function readPendingRegistrationRoles(email?: string | null): UserRole[] {
   try {
     const raw = sessionStorage.getItem(REGISTRATION_ROLE_KEY)
-    if (!raw) return null
+    if (!raw) return []
     const parsed = JSON.parse(raw) as PendingRegistrationRole
-    if (!parsed?.role || (parsed.role !== 'teacher' && parsed.role !== 'student')) return null
+    const roles = normalizeRegistrationRoles(parsed)
+    if (!roles.length) return []
     const expected = email?.trim().toLowerCase()
-    if (expected && parsed.email !== expected) return null
-    return parsed.role
+    if (expected && parsed.email !== expected) return []
+    return roles
   } catch {
-    return null
+    return []
   }
+}
+
+export function readPendingRegistrationRole(email?: string | null): UserRole | null {
+  const roles = readPendingRegistrationRoles(email)
+  return roles[0] ?? null
+}
+
+/** Retire une qualité déjà complétée ; efface la session si plus rien en attente. */
+export function consumePendingRegistrationRole(email: string, role: UserRole) {
+  const roles = readPendingRegistrationRoles(email).filter((r) => r !== role)
+  if (!roles.length) {
+    clearPendingRegistrationRole()
+    return
+  }
+  persistRegistrationRoles(email, roles)
 }
 
 export function clearPendingRegistrationRole() {

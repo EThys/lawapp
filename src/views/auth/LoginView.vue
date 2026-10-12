@@ -15,7 +15,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
-const email = ref('')
+const email = ref(typeof route.query.email === 'string' ? route.query.email.trim() : '')
 const password = ref('')
 const error = ref('')
 const loading = ref(false)

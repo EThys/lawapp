@@ -8,7 +8,9 @@ import AppCard from '@/components/ui/AppCard.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
-import { AlertCircle, Shield, Trash2, GraduationCap, LayoutDashboard } from '@lucide/vue'
+import RoleWorkspaceSwitcher from '@/components/account/RoleWorkspaceSwitcher.vue'
+import { AlertCircle, Shield, Trash2, GraduationCap, LayoutDashboard, BookOpen, Building2 } from '@lucide/vue'
+import { hasInstitutionAccess } from '@/utils/platformAccess'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -25,6 +27,7 @@ const deleteLoading = ref(false)
 
 const apiMode = computed(() => isApiEnabled())
 const user = computed(() => auth.currentUser)
+const showInstitutionAdmin = computed(() => hasInstitutionAccess(user.value))
 
 async function handleChangePassword() {
   changeError.value = ''
@@ -42,10 +45,10 @@ async function handleChangePassword() {
       appToast.error(result.error)
       return
     }
-    changeSuccess.value = result.message ?? 'Mot de passe modifié.'
-    appToast.success(changeSuccess.value)
+    const message = result.message ?? 'Mot de passe modifié. Reconnectez-vous.'
     newPassword.value = ''
     confirmPassword.value = ''
+    await router.replace({ path: '/login', query: { message } })
   } finally {
     changeLoading.value = false
   }
@@ -87,12 +90,18 @@ async function handleDeleteAccount() {
       <p v-if="user" class="mt-2 text-sm text-ink-muted">
         {{ user.firstName }} {{ user.lastName }} · {{ user.email }}
       </p>
-      <div v-if="user?.certified" class="mt-3 flex flex-wrap items-center gap-3">
-        <AppBadge variant="success">Compte certifié</AppBadge>
-        <RouterLink to="/admin">
+      <div v-if="user?.certified || showInstitutionAdmin" class="mt-3 flex flex-wrap items-center gap-3">
+        <AppBadge v-if="user?.certified" variant="success">Super admin plateforme</AppBadge>
+        <RouterLink v-if="user?.certified" to="/admin">
           <AppButton size="sm" variant="outline">
             <LayoutDashboard class="w-4 h-4" />
-            Tableau de bord admin
+            Super admin (/admin)
+          </AppButton>
+        </RouterLink>
+        <RouterLink v-if="showInstitutionAdmin" to="/institution">
+          <AppButton size="sm" variant="outline">
+            <Building2 class="w-4 h-4" />
+            Admin université (/institution)
           </AppButton>
         </RouterLink>
       </div>
@@ -139,28 +148,55 @@ async function handleDeleteAccount() {
       </form>
     </AppCard>
 
-    <AppCard v-if="apiMode && auth.isTeacher" class="p-6 space-y-4">
-      <div class="flex items-center gap-2">
-        <GraduationCap class="w-5 h-5 text-accent" />
-        <h2 class="font-semibold text-ink">Profil enseignant</h2>
+    <AppCard class="p-6 space-y-5">
+      <div>
+        <h2 class="font-semibold text-ink">Mes espaces</h2>
+        <p class="mt-1 text-sm text-ink-muted">Un compte, deux tableaux de bord. Basculez quand vous voulez.</p>
       </div>
-      <p class="text-sm text-ink-muted">
-        <template v-if="user?.hasTeacherProfile || user?.teacherProfileId">
-          Votre profil enseignant est actif. Vous pouvez le consulter si besoin.
-        </template>
-        <template v-else>
-          Complétez vos informations pour publier des évaluations.
-        </template>
-      </p>
-      <RouterLink to="/teacher/profile">
-        <AppButton variant="outline">
-          {{
-            user?.hasTeacherProfile || user?.teacherProfileId
-              ? 'Voir mon profil enseignant'
-              : 'Configurer mon profil enseignant'
-          }}
-        </AppButton>
-      </RouterLink>
+
+      <RoleWorkspaceSwitcher v-if="auth.canSwitchWorkspace" variant="panel" />
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div class="border border-line p-4 space-y-3">
+          <div class="flex items-center gap-2">
+            <GraduationCap class="w-5 h-5 text-accent" />
+            <h3 class="font-medium text-ink">Enseignant</h3>
+            <AppBadge v-if="auth.hasTeacherQuality" variant="success">Actif</AppBadge>
+            <AppBadge v-else variant="muted">À configurer</AppBadge>
+          </div>
+          <p class="text-sm text-ink-muted">
+            Créer des évaluations, suivre les promotions et gérer les présences.
+          </p>
+          <RouterLink to="/teacher/profile">
+            <AppButton size="sm" variant="outline">
+              {{
+                auth.hasTeacherQuality
+                  ? 'Profil enseignant'
+                  : 'Activer l’espace enseignant'
+              }}
+            </AppButton>
+          </RouterLink>
+        </div>
+
+        <div class="border border-line p-4 space-y-3">
+          <div class="flex items-center gap-2">
+            <BookOpen class="w-5 h-5 text-ink" />
+            <h3 class="font-medium text-ink">Étudiant</h3>
+            <AppBadge v-if="auth.hasStudentQuality" variant="success">Actif</AppBadge>
+            <AppBadge v-else variant="muted">À configurer</AppBadge>
+          </div>
+          <p class="text-sm text-ink-muted">
+            Rejoindre des groupes, passer des examens et consulter vos résultats.
+          </p>
+          <RouterLink to="/student/profile">
+            <AppButton size="sm" variant="outline">
+              {{
+                auth.hasStudentQuality ? 'Profil étudiant' : 'Activer l’espace étudiant'
+              }}
+            </AppButton>
+          </RouterLink>
+        </div>
+      </div>
     </AppCard>
 
     <AppCard v-if="apiMode" class="p-6 space-y-5 border-danger/30">

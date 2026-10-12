@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { generateOtp, validateOtp } from '@/api/otp'
+import { requestPasswordForgot, verifyPasswordResetCode as verifyPasswordResetCodeApi } from '@/api/passwordReset'
 import { extractApiError } from '@/api/client'
 import {
   clearPendingVerification,
@@ -70,6 +71,49 @@ export const useVerificationStore = defineStore('verification', () => {
     }
   }
 
+  /** Mot de passe oublié — envoi du code (endpoint dédié, pas OTP inscription). */
+  async function sendPasswordResetCode() {
+    if (!identifier.value) {
+      error.value = 'Adresse e-mail manquante.'
+      throw new Error('missing-identifier')
+    }
+    loading.value = true
+    error.value = null
+    lastInfoMessage.value = null
+    try {
+      return await requestPasswordForgot(identifier.value)
+    } catch (e) {
+      error.value = normalizeOtpError(extractApiError(e))
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /** Mot de passe oublié — vérification du code avant reset password. */
+  async function verifyPasswordResetCode(code: string, opts?: { keepIdentifier?: boolean }) {
+    if (!identifier.value) {
+      error.value = 'Adresse e-mail manquante.'
+      throw new Error('missing-identifier')
+    }
+    loading.value = true
+    error.value = null
+    lastInfoMessage.value = null
+    try {
+      const res = await verifyPasswordResetCodeApi(identifier.value, code)
+      if (!opts?.keepIdentifier) {
+        clearPendingVerification()
+        identifier.value = ''
+      }
+      return res
+    } catch (e) {
+      error.value = normalizeOtpError(extractApiError(e))
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function confirmCode(code: string, opts?: { keepIdentifier?: boolean }) {
     if (!identifier.value) {
       error.value = 'Adresse e-mail manquante.'
@@ -103,6 +147,8 @@ export const useVerificationStore = defineStore('verification', () => {
     hydrateFromRouteOrStorage,
     clearFeedback,
     sendCode,
+    sendPasswordResetCode,
+    verifyPasswordResetCode,
     confirmCode,
   }
 })

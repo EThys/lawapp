@@ -9,6 +9,8 @@ import type {
   RegisterTeacherPayload,
   RegisterStudentPayload,
   LoginPayload,
+  InstitutionAffiliation,
+  StudentAcademicAffiliation,
 } from '@/types/auth'
 import { hashPassword, validateEmail, validatePassword, validateCdPhone, phoneForApi } from '@/utils/auth'
 import { generateId } from '@/utils/helpers'
@@ -20,10 +22,20 @@ import {
   USER_KEY,
   INTENDED_ROLE_KEY,
 } from '@/config/features'
-import { loginApi, registerApi, changePasswordApi, resetPasswordApi, recoverUserApi, certifyUserApi, deleteAccountApi, refreshTokenApi } from '@/api/auth'
+import { loginApi, registerApi, changePasswordApi, recoverUserApi, certifyUserApi, deleteAccountApi, refreshTokenApi } from '@/api/auth'
+import { resetForgottenPassword as resetForgottenPasswordApi } from '@/api/passwordReset'
+import { fetchSessionMe } from '@/api/me'
+import { submitMyAcademicPath } from '@/api/academicPath'
+import { requestMyTeacherInstitutionAffiliation } from '@/api/teacherAffiliation'
+import { listPromotions } from '@/api/catalog'
 import { extractApiError } from '@/api/client'
 import { getMyTeacherProfile } from '@/api/teachers'
 import { getMyStudentProfile } from '@/api/students'
+import {
+  academicPathFromApiPayload,
+  mergeSessionMeIntoUser,
+  teacherAffiliationFromApiPayload,
+} from '@/utils/sessionMeMapper'
 import type { BackendLoginResponse, BackendMemberProfile } from '@/api/types'
 import type { StudentRecord, TeacherRecord } from '@/api/types'
 import {
@@ -44,7 +56,9 @@ import {
 } from '@/utils/memberProfile'
 import {
   clearPendingRegistrationRole,
+  consumePendingRegistrationRole,
   readPendingRegistrationRole,
+  readPendingRegistrationRoles,
 } from '@/utils/verificationSession'
 
 const USERS_KEY = 'lawapp_users'
@@ -189,6 +203,7 @@ export function postAuthHome(
     hasStudentProfile?: boolean
     email?: string | null
     pendingRegistrationRole?: UserRole | null
+    pendingRegistrationRoles?: UserRole[]
   },
 ): string {
   if (options?.redirect) return options.redirect
@@ -210,12 +225,20 @@ export function postAuthHome(
     return preferred === 'student' ? '/student' : '/teacher'
   }
 
-  // Profil métier pas encore créé : qualité choisie une seule fois à l'inscription.
+  const pendingRoles =
+    options?.pendingRegistrationRoles?.length
+      ? options.pendingRegistrationRoles
+      : readPendingRegistrationRoles(options?.email ?? undefined)
   const registrationRole =
     options?.pendingRegistrationRole ??
     readPendingRegistrationRole(options?.email ?? undefined)
-  if (registrationRole === 'teacher') return '/teacher/profile'
-  if (registrationRole === 'student') return '/student/profile'
+
+  if (hasTeacher && pendingRoles.includes('student')) return '/student/profile'
+  if (hasStudent && pendingRoles.includes('teacher')) return '/teacher/profile'
+
+  if (pendingRoles.length > 1) return '/onboarding/profile'
+  if (registrationRole === 'teacher' || pendingRoles[0] === 'teacher') return '/teacher/profile'
+  if (registrationRole === 'student' || pendingRoles[0] === 'student') return '/student/profile'
 
   return '/onboarding/profile'
 }
@@ -240,17 +263,46 @@ export const useAuthStore = defineStore('auth', () => {
   const studentProfile = computed(() => extractStudentFromProfile(memberProfile.value))
 
   const isAuthenticated = computed(() => !!currentUser.value)
-  const isTeacher = computed(
+
+  const hasTeacherQuality = computed(
     () =>
-      currentUser.value?.role === 'teacher' ||
       !!currentUser.value?.hasTeacherProfile ||
+      !!currentUser.value?.teacherProfileId ||
       !!teacherProfile.value?.teacherId,
   )
-  const isStudent = computed(
+  const hasStudentQuality = computed(
     () =>
-      currentUser.value?.role === 'student' ||
       !!currentUser.value?.hasStudentProfile ||
+      !!currentUser.value?.studentProfileId ||
       !!studentProfile.value?.studentId,
+  )
+
+  const activeWorkspace = computed((): UserRole | null => {
+    const u = currentUser.value
+    if (!u) return null
+    if (u.role === 'teacher' && hasTeacherQuality.value) return 'teacher'
+    if (u.role === 'student' && hasStudentQuality.value) return 'student'
+    if (hasTeacherQuality.value && !hasStudentQuality.value) return 'teacher'
+    if (hasStudentQuality.value && !hasTeacherQuality.value) return 'student'
+    const last = readLastActiveRole()
+    if (last === 'teacher' && hasTeacherQuality.value) return 'teacher'
+    if (last === 'student' && hasStudentQuality.value) return 'student'
+    if (hasTeacherQuality.value) return 'teacher'
+    if (hasStudentQuality.value) return 'student'
+    return null
+  })
+
+  const canSwitchWorkspace = computed(
+    () => hasTeacherQuality.value && hasStudentQuality.value,
+  )
+
+  /** Accès à l’espace enseignant (profil ou session). */
+  const isTeacher = computed(
+    () => hasTeacherQuality.value || currentUser.value?.role === 'teacher',
+  )
+  /** Accès à l’espace étudiant (profil ou session). */
+  const isStudent = computed(
+    () => hasStudentQuality.value || currentUser.value?.role === 'student',
   )
   const needsProfile = computed(() => {
     if (!isApiEnabled()) return false
@@ -264,6 +316,201 @@ export const useAuthStore = defineStore('auth', () => {
     if (!apiUser.value) return
     apiUser.value = { ...apiUser.value, ...partial }
     localStorage.setItem(USER_KEY, JSON.stringify(apiUser.value))
+  }
+
+  function patchCurrentUser(partial: Partial<User>) {
+    if (isApiEnabled()) {
+      updateStoredUser(partial)
+      return
+    }
+    const u = currentUser.value
+    if (!u) return
+    const idx = users.value.findIndex((x) => x.id === u.id)
+    if (idx < 0) return
+    users.value[idx] = { ...users.value[idx], ...partial }
+    persistUsers()
+  }
+
+  function parseEtablissementId(institutionKey: string): number | null {
+    const n = Number.parseInt(institutionKey.trim(), 10)
+    return Number.isFinite(n) && n > 0 ? n : null
+  }
+
+  async function refreshSessionProfile(): Promise<User | null> {
+    if (!isApiEnabled() || !apiUser.value) return apiUser.value
+    try {
+      const me = await fetchSessionMe()
+      const merged = mergeSessionMeIntoUser(apiUser.value, me)
+      apiUser.value = merged
+      localStorage.setItem(USER_KEY, JSON.stringify(merged))
+      saveProfileSnapshot(merged)
+      return merged
+    } catch {
+      return apiUser.value
+    }
+  }
+
+  async function requestTeacherInstitutionAffiliation(
+    institutionKey: string,
+    institutionLabel: string,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    if (!currentUser.value) return { ok: false, error: 'Non connecté.' }
+    const key = institutionKey.trim()
+    const label = institutionLabel.trim()
+    if (!key || !label) return { ok: false, error: 'Établissement invalide.' }
+
+    if (isApiEnabled()) {
+      const etabId = parseEtablissementId(key)
+      if (etabId == null) {
+        return {
+          ok: false,
+          error: 'Choisissez un établissement dans la liste API (identifiant numérique).',
+        }
+      }
+      try {
+        const res = await requestMyTeacherInstitutionAffiliation({ etablissementId: etabId })
+        const fromApi = teacherAffiliationFromApiPayload(res)
+        if (fromApi) {
+          patchCurrentUser({ teacherInstitutionAffiliation: fromApi })
+        } else {
+          patchCurrentUser({
+            teacherInstitutionAffiliation: {
+              institutionKey: key,
+              institutionLabel: label,
+              status: 'pending',
+              requestedAt: new Date().toISOString(),
+            },
+          })
+        }
+        await refreshSessionProfile()
+        return { ok: true }
+      } catch (e) {
+        return { ok: false, error: extractApiError(e) }
+      }
+    }
+
+    const affiliation: InstitutionAffiliation = {
+      institutionKey: key,
+      institutionLabel: label,
+      status: 'pending',
+      requestedAt: new Date().toISOString(),
+    }
+    patchCurrentUser({ teacherInstitutionAffiliation: affiliation })
+    return { ok: true }
+  }
+
+  function requestStudentInstitutionAffiliation(
+    institutionKey: string,
+    institutionLabel: string,
+  ): { ok: true } | { ok: false; error: string } {
+    if (!currentUser.value) return { ok: false, error: 'Non connecté.' }
+    const key = institutionKey.trim()
+    const label = institutionLabel.trim()
+    if (!key || !label) return { ok: false, error: 'Établissement invalide.' }
+    const affiliation: InstitutionAffiliation = {
+      institutionKey: key,
+      institutionLabel: label,
+      status: 'pending',
+      requestedAt: new Date().toISOString(),
+    }
+    patchCurrentUser({ studentInstitutionAffiliation: affiliation })
+    return { ok: true }
+  }
+
+  async function requestStudentAcademicAffiliation(input: {
+    institutionKey: string
+    institutionLabel: string
+    faculty: string
+    promotion: string
+    classroomLabel?: string
+    classroomId?: string
+    facultyId?: number
+    promotionId?: number
+  }): Promise<{ ok: true } | { ok: false; error: string }> {
+    if (!currentUser.value) return { ok: false, error: 'Non connecté.' }
+    const faculty = input.faculty.trim()
+    const promotion = input.promotion.trim()
+    if (!input.institutionKey.trim() || !faculty || !promotion) {
+      return { ok: false, error: 'Université, faculté et promotion sont requis.' }
+    }
+
+    if (isApiEnabled()) {
+      const etabId = parseEtablissementId(input.institutionKey)
+      if (etabId == null) {
+        return {
+          ok: false,
+          error: 'Choisissez un établissement dans la liste API (identifiant numérique).',
+        }
+      }
+      let promotionId = input.promotionId
+      if (promotionId == null) {
+        try {
+          const promos = await listPromotions()
+          const match = promos.find(
+            (p) => p.name?.trim().toLowerCase() === promotion.toLowerCase(),
+          )
+          promotionId = match?.id
+        } catch {
+          /* fallback facultyName only */
+        }
+      }
+      try {
+        const res = await submitMyAcademicPath({
+          etablissementId: etabId,
+          facultyName: faculty,
+          ...(input.facultyId != null ? { facultyId: input.facultyId } : {}),
+          ...(promotionId != null ? { promotionId } : {}),
+          ...(input.classroomId
+            ? { classroomId: Number.parseInt(input.classroomId, 10) || undefined }
+            : {}),
+        })
+        const fromApi = academicPathFromApiPayload(res)
+        const affiliation: StudentAcademicAffiliation = fromApi ?? {
+          institutionKey: input.institutionKey.trim(),
+          institutionLabel: input.institutionLabel.trim(),
+          faculty,
+          promotion,
+          classroomLabel: input.classroomLabel?.trim() || undefined,
+          classroomId: input.classroomId?.trim() || undefined,
+          status: 'pending',
+          requestedAt: new Date().toISOString(),
+        }
+        patchCurrentUser({
+          studentAcademicAffiliation: affiliation,
+          studentInstitutionAffiliation: {
+            institutionKey: affiliation.institutionKey,
+            institutionLabel: affiliation.institutionLabel,
+            status: affiliation.status,
+            requestedAt: affiliation.requestedAt,
+          },
+        })
+        await refreshSessionProfile()
+        return { ok: true }
+      } catch (e) {
+        return { ok: false, error: extractApiError(e) }
+      }
+    }
+
+    const affiliation: StudentAcademicAffiliation = {
+      institutionKey: input.institutionKey.trim(),
+      institutionLabel: input.institutionLabel.trim(),
+      faculty,
+      promotion,
+      classroomLabel: input.classroomLabel?.trim() || undefined,
+      classroomId: input.classroomId?.trim() || undefined,
+      status: 'pending',
+      requestedAt: new Date().toISOString(),
+    }
+    patchCurrentUser({
+      studentAcademicAffiliation: affiliation,
+      studentInstitutionAffiliation: {
+        institutionKey: affiliation.institutionKey,
+        institutionLabel: affiliation.institutionLabel,
+        status: 'pending',
+        requestedAt: affiliation.requestedAt,
+      },
+    })
+    return { ok: true }
   }
 
   function setMemberProfile(profile: BackendMemberProfile | null) {
@@ -297,9 +544,68 @@ export const useAuthStore = defineStore('auth', () => {
     if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
   }
 
+  function setActiveWorkspace(role: UserRole): boolean {
+    const u = currentUser.value
+    if (!u) return false
+    if (role === 'teacher' && !hasTeacherQuality.value) return false
+    if (role === 'student' && !hasStudentQuality.value) return false
+
+    if (isApiEnabled()) {
+      updateStoredUser({ role })
+    } else {
+      const idx = users.value.findIndex((x) => x.id === u.id)
+      if (idx < 0) return false
+      users.value[idx] = { ...users.value[idx], role }
+      persistUsers()
+    }
+    rememberActiveRole(role)
+    return true
+  }
+
+  /** Aligner le rôle de session sur la route (sans navigation). */
+  function applyWorkspaceFromRoute(role: UserRole) {
+    if (!currentUser.value) return
+    if (role === 'teacher' && !hasTeacherQuality.value) return
+    if (role === 'student' && !hasStudentQuality.value) return
+    const current = currentUser.value.role
+    if (current === role) return
+    setActiveWorkspace(role)
+  }
+
   /** Après création d'un profil, active la qualité et persiste le profil métier. */
   function grantQuality(kind: UserRole, profile?: TeacherRecord | StudentRecord | number) {
-    if (!apiUser.value) return
+    const isFirstQuality =
+      kind === 'teacher' ? !hasTeacherQuality.value : !hasStudentQuality.value
+
+    const persistLocalQuality = (partial: Partial<User>) => {
+      if (isApiEnabled()) {
+        if (!apiUser.value) return
+        const sessionRole =
+          apiUser.value.role === 'teacher' || apiUser.value.role === 'student'
+            ? apiUser.value.role
+            : kind
+        updateStoredUser({
+          ...partial,
+          role: sessionRole,
+        })
+      } else {
+        const u = currentUser.value
+        if (!u) return
+        const idx = users.value.findIndex((x) => x.id === u.id)
+        if (idx < 0) return
+        const prev = users.value[idx]
+        const sessionRole =
+          prev.role === 'teacher' || prev.role === 'student' ? prev.role : kind
+        users.value[idx] = {
+          ...prev,
+          ...partial,
+          role: sessionRole,
+        }
+        persistUsers()
+      }
+    }
+
+    if (isApiEnabled() && !apiUser.value) return
     if (kind === 'teacher') {
       const teacher =
         typeof profile === 'object' && profile && 'teacherId' in profile
@@ -312,11 +618,15 @@ export const useAuthStore = defineStore('auth', () => {
       if (teacher?.teacherId) {
         setMemberProfile(mergeStoredTeacherProfile(teacher))
       }
-      updateStoredUser({
+      persistLocalQuality({
         hasTeacherProfile: true,
-        teacherProfileId: teacher?.teacherId ?? (typeof profile === 'number' ? profile : apiUser.value.teacherProfileId),
-        role: 'teacher',
-        institution: teacher && 'departement' in teacher ? teacher.departement ?? apiUser.value.institution : apiUser.value.institution,
+        teacherProfileId:
+          teacher?.teacherId ??
+          (typeof profile === 'number' ? profile : apiUser.value?.teacherProfileId),
+        institution:
+          teacher && 'departement' in teacher
+            ? teacher.departement ?? apiUser.value?.institution
+            : apiUser.value?.institution,
       })
     } else {
       const student =
@@ -330,15 +640,27 @@ export const useAuthStore = defineStore('auth', () => {
       if (student?.studentId) {
         setMemberProfile(mergeStoredStudentProfile(student))
       }
-      updateStoredUser({
+      persistLocalQuality({
         hasStudentProfile: true,
-        studentProfileId: student?.studentId ?? (typeof profile === 'number' ? profile : apiUser.value.studentProfileId),
-        role: 'student',
-        studentId: student && 'matricule' in student ? student.matricule ?? apiUser.value.studentId : apiUser.value.studentId,
+        studentProfileId:
+          student?.studentId ??
+          (typeof profile === 'number' ? profile : apiUser.value?.studentProfileId),
+        studentId:
+          student && 'matricule' in student
+            ? student.matricule ?? apiUser.value?.studentId
+            : apiUser.value?.studentId,
       })
     }
-    rememberActiveRole(kind)
-    clearPendingRegistrationRole()
+    const email = currentUser.value?.email
+    if (email) {
+      consumePendingRegistrationRole(email, kind)
+    } else {
+      clearPendingRegistrationRole()
+    }
+    if (isFirstQuality) {
+      rememberActiveRole(kind)
+      setActiveWorkspace(kind)
+    }
   }
 
   async function refreshQualities(): Promise<User | null> {
@@ -347,9 +669,10 @@ export const useAuthStore = defineStore('auth', () => {
       return apiUser.value
     }
     try {
+      await refreshSessionProfile()
       // Priorité au profil login persisté ; compléter via listes API si besoin.
       let resolved = applyProfileSnapshot(
-        qualitiesFromMemberProfile(apiUser.value, memberProfile.value ?? loadStoredMemberProfile()),
+        qualitiesFromMemberProfile(apiUser.value!, memberProfile.value ?? loadStoredMemberProfile()),
       )
       if (!resolved.hasTeacherProfile && !resolved.hasStudentProfile) {
         resolved = await resolveUserQualities(resolved)
@@ -587,6 +910,8 @@ export const useAuthStore = defineStore('auth', () => {
       resolved = applyProfileSnapshot(resolved)
       persistApiSession(resolved, data.token, data.refresh_token)
       saveProfileSnapshot(resolved)
+      await refreshSessionProfile()
+      if (apiUser.value) resolved = apiUser.value
       const needsProfile = !resolved.hasTeacherProfile && !resolved.hasStudentProfile
       if (needsProfile) {
         clearRoleIntent()
@@ -659,7 +984,9 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     try {
       const res = await changePasswordApi(newPassword)
-      return { ok: true, message: res?.message ?? 'Mot de passe modifié.' }
+      const message = res?.message ?? 'Mot de passe modifié. Reconnectez-vous.'
+      logout()
+      return { ok: true, message }
     } catch (e) {
       return { ok: false, error: extractApiError(e) }
     } finally {
@@ -668,12 +995,18 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function resetPasswordAfterOtp(
+    identifier: string,
+    code: string,
     newPassword: string,
     confirmPassword: string,
   ): Promise<{ ok: true; message?: string } | { ok: false; error: string }> {
     if (!isApiEnabled()) {
       return { ok: false, error: 'Disponible uniquement en mode API.' }
     }
+    const id = identifier.trim()
+    const otp = code.trim()
+    if (!id) return { ok: false, error: 'Adresse e-mail manquante.' }
+    if (!otp) return { ok: false, error: 'Code de vérification manquant. Revenez à l’étape précédente.' }
     const pwdError = validatePassword(newPassword)
     if (pwdError) return { ok: false, error: pwdError }
     if (newPassword !== confirmPassword) {
@@ -681,8 +1014,15 @@ export const useAuthStore = defineStore('auth', () => {
     }
     loading.value = true
     try {
-      const res = await resetPasswordApi(newPassword)
-      return { ok: true, message: res?.message ?? 'Mot de passe réinitialisé.' }
+      const res = await resetForgottenPasswordApi({
+        identifier: id,
+        code: otp,
+        newPassword,
+        confirmPassword,
+      })
+      const message = res?.message ?? 'Mot de passe réinitialisé. Vous pouvez vous connecter.'
+      logout()
+      return { ok: true, message }
     } catch (e) {
       return { ok: false, error: extractApiError(e) }
     } finally {
@@ -800,6 +1140,7 @@ export const useAuthStore = defineStore('auth', () => {
       hasStudentProfile: u?.hasStudentProfile,
       email: u?.email,
       pendingRegistrationRole: readPendingRegistrationRole(u?.email),
+      pendingRegistrationRoles: readPendingRegistrationRoles(u?.email),
     })
   }
 
@@ -816,6 +1157,10 @@ export const useAuthStore = defineStore('auth', () => {
     teacherProfile,
     studentProfile,
     isAuthenticated,
+    hasTeacherQuality,
+    hasStudentQuality,
+    activeWorkspace,
+    canSwitchWorkspace,
     isTeacher,
     isStudent,
     needsProfile,
@@ -833,8 +1178,14 @@ export const useAuthStore = defineStore('auth', () => {
     recoverUser,
     certifyUser,
     refreshSession,
+    refreshSessionProfile,
     refreshQualities,
     grantQuality,
+    setActiveWorkspace,
+    applyWorkspaceFromRoute,
+    requestTeacherInstitutionAffiliation,
+    requestStudentInstitutionAffiliation,
+    requestStudentAcademicAffiliation,
     setMemberProfile,
     homePath,
     getUserById,
