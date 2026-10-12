@@ -193,10 +193,11 @@ async function handleLinkDocument() {
   <DashboardPage>
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
       <div>
-        <p class="label-caps mb-2">Administration</p>
+        <p class="label-caps mb-2">Super admin plateforme</p>
         <h1 class="font-display text-3xl text-ink tracking-tight">Tableau de bord</h1>
         <p class="mt-2 text-sm text-ink-muted leading-relaxed">
-          Référentiels, catégories et validation. Les évaluations et soumissions sont dans le menu à gauche.
+          Référentiels globaux, visibilité des universités (GET public), catégories. Les admins de chaque
+          université utilisent <strong class="font-medium text-ink">/institution</strong> (rôles établissement).
         </p>
         <div class="mt-3">
           <AppBadge variant="success">Compte certifié</AppBadge>
