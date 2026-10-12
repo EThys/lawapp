@@ -18,6 +18,7 @@ import AppSelect from '@/components/ui/AppSelect.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import DashboardPage from '@/components/layout/DashboardPage.vue'
 import DashboardSection from '@/components/layout/DashboardSection.vue'
+import StudentAcademicAffiliationCard from '@/components/institution/StudentAcademicAffiliationCard.vue'
 import { AlertCircle, BookOpen } from '@lucide/vue'
 import { dismissKeyboard, missingFieldsMessage } from '@/utils/form'
 
@@ -240,6 +241,8 @@ function onClassroomChange(value: string) {
             Informations du compte, niveau (promotion) et salle créée par votre enseignant.
           </p>
         </div>
+
+        <StudentAcademicAffiliationCard class="mb-6" />
 
         <AppCard v-if="user" class="p-6 mb-6 space-y-3" :hover="false">
           <div class="flex flex-wrap items-center gap-2">

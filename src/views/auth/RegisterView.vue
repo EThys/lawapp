@@ -13,7 +13,7 @@ import { useVerificationStore } from '@/stores/verification'
 import {
   persistPendingVerification,
   persistPendingLoginCredentials,
-  persistRegistrationRole,
+  persistRegistrationRoles,
   clearPendingRegistrationRole,
 } from '@/utils/verificationSession'
 import { validateCdPhone } from '@/utils/auth'
@@ -30,10 +30,10 @@ const steps = ['Identité', 'Profil', 'Sécurité']
 
 const stepHint = computed(() => {
   if (step.value === 0) return 'Vos informations personnelles.'
-  if (step.value === 1) return 'Vous enseignez ou vous étudiez ?'
+  if (step.value === 1) return 'Un ou deux espaces : enseignant et/ou étudiant.'
   return 'Choisissez un mot de passe sécurisé.'
 })
-const intendedRole = ref<UserRole | null>(null)
+const intendedRoles = ref<UserRole[]>([])
 
 const email = ref('')
 const password = ref('')
@@ -72,8 +72,8 @@ function validateStep(): boolean {
     }
   }
   if (step.value === 1) {
-    if (!intendedRole.value) {
-      error.value = 'Indiquez si vous êtes enseignant ou étudiant.'
+    if (!intendedRoles.value.length) {
+      error.value = 'Sélectionnez au moins un espace (enseignant et/ou étudiant).'
       return false
     }
   }
@@ -112,17 +112,25 @@ function prevStep() {
   if (step.value > 0) step.value--
 }
 
-function selectRole(role: UserRole) {
-  intendedRole.value = role
+function isRoleSelected(role: UserRole) {
+  return intendedRoles.value.includes(role)
+}
+
+function toggleRole(role: UserRole) {
   error.value = ''
+  if (isRoleSelected(role)) {
+    intendedRoles.value = intendedRoles.value.filter((r) => r !== role)
+  } else {
+    intendedRoles.value = [...intendedRoles.value, role]
+  }
 }
 
 async function handleRegister() {
   if (!validateStep()) return
   clearRoleIntent()
   clearProfileSnapshot()
-  if (intendedRole.value) {
-    persistRegistrationRole(email.value, intendedRole.value)
+  if (intendedRoles.value.length) {
+    persistRegistrationRoles(email.value, intendedRoles.value)
   }
   loading.value = true
 
@@ -194,11 +202,13 @@ async function handleRegister() {
       </div>
 
       <div v-else-if="step === 1" key="1" class="space-y-3">
+        <p class="text-sm text-ink-muted">Cochez un ou les deux — vous compléterez le profil après l’e-mail.</p>
         <button
           type="button"
           class="flex w-full cursor-pointer items-start gap-4 p-5 border text-left transition-colors"
-          :class="intendedRole === 'teacher' ? 'border-accent bg-accent-light/40' : 'border-line hover:bg-paper-warm'"
-          @click="selectRole('teacher')"
+          :class="isRoleSelected('teacher') ? 'border-accent bg-accent-light/40 ring-1 ring-accent/30' : 'border-line hover:bg-paper-warm'"
+          :aria-pressed="isRoleSelected('teacher')"
+          @click="toggleRole('teacher')"
         >
           <span class="mt-0.5 flex h-10 w-10 items-center justify-center bg-accent text-white">
             <GraduationCap class="w-5 h-5" />
@@ -211,8 +221,9 @@ async function handleRegister() {
         <button
           type="button"
           class="flex w-full cursor-pointer items-start gap-4 p-5 border text-left transition-colors"
-          :class="intendedRole === 'student' ? 'border-accent bg-accent-light/40' : 'border-line hover:bg-paper-warm'"
-          @click="selectRole('student')"
+          :class="isRoleSelected('student') ? 'border-accent bg-accent-light/40 ring-1 ring-accent/30' : 'border-line hover:bg-paper-warm'"
+          :aria-pressed="isRoleSelected('student')"
+          @click="toggleRole('student')"
         >
           <span class="mt-0.5 flex h-10 w-10 items-center justify-center bg-ink text-white">
             <BookOpen class="w-5 h-5" />

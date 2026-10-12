@@ -18,6 +18,7 @@ import AppBadge from '@/components/ui/AppBadge.vue'
 import AppModal from '@/components/ui/AppModal.vue'
 import DashboardPage from '@/components/layout/DashboardPage.vue'
 import DashboardSection from '@/components/layout/DashboardSection.vue'
+import InstitutionAffiliationCard from '@/components/institution/InstitutionAffiliationCard.vue'
 import { AlertCircle, GraduationCap, Shield, Trash2 } from '@lucide/vue'
 import { dismissKeyboard, missingFieldsMessage } from '@/utils/form'
 import { appToast } from '@/utils/toast'
@@ -195,11 +196,11 @@ async function handleChangePassword() {
       appToast.error(result.error)
       return
     }
-    changeSuccess.value = result.message ?? 'Mot de passe modifié.'
-    appToast.success(changeSuccess.value)
+    const message = result.message ?? 'Mot de passe modifié. Reconnectez-vous.'
     newPassword.value = ''
     confirmPassword.value = ''
     showPasswordModal.value = false
+    await router.replace({ path: '/login', query: { message } })
   } finally {
     changeLoading.value = false
   }
@@ -245,6 +246,8 @@ async function handleDeleteAccount() {
             Informations du compte et du profil enseignant (fournies à la connexion).
           </p>
         </div>
+
+        <InstitutionAffiliationCard class="mb-6" />
 
         <AppCard v-if="user" class="p-6 mb-6 space-y-3" :hover="false">
           <div class="flex flex-wrap items-center gap-2">
