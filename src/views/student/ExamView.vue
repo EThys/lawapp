@@ -468,14 +468,24 @@ onUnmounted(() => {
   <div v-if="evaluation && session" class="h-dvh min-h-dvh bg-paper flex flex-col overflow-hidden">
     <div
       v-if="mustEnterFullscreen"
-      class="fixed inset-0 z-[60] bg-brand-dark flex flex-col items-center justify-center p-6 text-center text-white"
+      class="fixed inset-0 z-[60] bg-brand-dark flex flex-col items-center justify-center p-6 pt-safe pb-safe px-safe text-center text-white"
     >
       <Maximize class="w-10 h-10 text-accent mb-4" />
       <h2 class="font-display text-lg mb-2">Plein écran obligatoire</h2>
       <p class="text-sm text-white/75 max-w-sm mb-6">
         Cette épreuve se déroule en plein écran. Activez-le pour continuer.
       </p>
-      <AppButton class="min-w-[12rem]" @click="enterFullscreen">Activer le plein écran</AppButton>
+      <AppButton class="min-w-[12rem] w-full max-w-xs" @click="enterFullscreen">
+        Activer le plein écran
+      </AppButton>
+    </div>
+
+    <div
+      v-if="requireFullscreen && !fullscreenSupported && !examEnded"
+      class="flex-shrink-0 px-4 py-2.5 bg-warning-bg border-b border-warning/25 text-xs sm:text-sm text-warning text-center px-safe"
+    >
+      Sur mobile (iPhone/iPad), le plein écran navigateur n’est pas disponible : restez dans LawApp sans
+      changer d’application pendant l’épreuve.
     </div>
 
     <header class="flex-shrink-0 z-30 bg-white border-b border-line shadow-sm pt-safe">

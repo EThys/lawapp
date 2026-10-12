@@ -52,12 +52,23 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
     @apply bg-paper text-ink font-sans antialiased;
     font-feature-settings: 'kern' 1, 'liga' 1;
     -webkit-tap-highlight-color: rgb(25 118 210 / 0.12);
+    overflow-x: clip;
+  }
+
+  #app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+    width: 100%;
+    min-width: 0;
   }
 
   @media (max-width: 768px) {
@@ -202,6 +213,24 @@
   .px-safe {
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
+  }
+
+  .min-h-app {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .auth-panel h1 {
+    @apply text-2xl sm:text-3xl;
+  }
+
+  .auth-form-sticky {
+    @apply sticky bottom-0 z-10 -mx-6 px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:static sm:mx-0 sm:px-0 sm:pt-0 sm:pb-0;
+    background: linear-gradient(
+      to top,
+      color-mix(in srgb, var(--color-paper) 96%, transparent) 70%,
+      transparent
+    );
   }
 
   .auth-grid-bg {
@@ -625,4 +654,32 @@
 .slide-leave-to {
   opacity: 0;
   transform: translate(-50%, -16px);
+}
+
+body.lawapp-drawer-open {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.shell-backdrop-enter-active,
+.shell-backdrop-leave-active {
+  transition: opacity 0.18s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.shell-backdrop-enter-from,
+.shell-backdrop-leave-to {
+  opacity: 0;
+}
+
+@media (max-width: 640px) {
+  [data-sonner-toaster][data-x-position='right'] {
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%);
+    width: min(100vw - 1.5rem, 24rem);
+  }
+
+  [data-sonner-toaster] {
+    top: max(0.75rem, env(safe-area-inset-top)) !important;
+  }
 }
