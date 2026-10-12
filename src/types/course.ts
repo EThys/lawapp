@@ -1,8 +1,12 @@
+/** `training_cohort` = formation indépendante (lien privé) · `university_class` = cours établissement. */
+export type ClassroomKind = 'university_class' | 'training_cohort'
+
 export interface Course {
   id: string
   /** Identifiant numérique backend (classroom-controller). */
   apiId?: number
   isFromApi?: boolean
+  roomKind?: ClassroomKind
   teacherId: string
   teacherName: string
   name: string
@@ -46,7 +50,8 @@ export interface AttendanceRecord {
   id: string
   courseId: string
   studentUserId: string
-  tunnelId: string
+  tunnelId?: string
+  presenceSessionId?: string
   /** Date locale YYYY-MM-DD */
   date: string
   markedAt: string

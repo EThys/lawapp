@@ -6,6 +6,17 @@ export type CorrectionMode = 'auto' | 'manual'
 
 export type EvaluationStatus = 'draft' | 'active' | 'closed'
 
+/** `open` = catalogue public · `institution` = établissement · `cohort` = salle / formation privée. */
+export type EvaluationPublicationScope = 'open' | 'institution' | 'cohort'
+
+/** Qui voit l’évaluation automatiquement (profil étudiant validé). Le code / lien reste utilisable. */
+export type EvaluationAudienceMode =
+  | 'open'
+  | 'faculty'
+  | 'promotions'
+  | 'classroom'
+  | 'students'
+
 export type SessionStatus = 'pending' | 'in_progress' | 'submitted' | 'failed' | 'expired'
 
 export type ViolationType =
@@ -117,6 +128,24 @@ export interface Evaluation {
   compteur?: number
   /** Swagger — annexe générale (base64 / URL). */
   fileContent?: string
+  /** Portée de publication (UI — backend à brancher). */
+  publicationScope?: EvaluationPublicationScope
+  linkedInstitutionKey?: string | null
+  linkedInstitutionLabel?: string | null
+  /** Brouillon tant que l’établissement n’a pas validé prof + évaluation liée. */
+  institutionPublicationPending?: boolean
+  /** Visibilité automatique pour les étudiants confirmés. */
+  audienceMode?: EvaluationAudienceMode
+  audienceInstitutionKey?: string | null
+  audienceInstitutionLabel?: string | null
+  audienceFaculty?: string | null
+  audiencePromotionLabels?: string[]
+  audienceClassroomId?: string | null
+  audienceStudentUserIds?: string[]
+  /** Expiration du code d’accès (fin de délai / échéance). */
+  accessCodeExpiresAt?: string | null
+  /** Hors « Catalogue & codes » (formations, salles privées). */
+  excludeFromOpenCatalog?: boolean
 }
 
 export interface StudentAnswer {

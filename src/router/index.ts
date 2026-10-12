@@ -4,14 +4,17 @@ import { useUiStore } from '@/stores/ui'
 import type { UserRole } from '@/types/auth'
 import { INTENDED_ROLE_KEY, LAST_ACTIVE_ROLE_KEY } from '@/config/features'
 import { readPendingRegistrationRole } from '@/utils/verificationSession'
+import { hasInstitutionAccess } from '@/utils/platformAccess'
 
 declare module 'vue-router' {
   interface RouteMeta {
     guest?: boolean
     requiresAuth?: boolean
     role?: UserRole
-    /** Accès réservé aux comptes certifiés (admin). */
+    /** Accès réservé aux comptes certifiés (super admin plateforme). */
     requiresCertified?: boolean
+    /** Rôle au sein d’un établissement partenaire (dashboard /institution). */
+    requiresInstitutionStaff?: boolean
     /** Accès au formulaire de profil sans qualité encore acquise. */
     profileCompletion?: boolean
     hideLayout?: boolean
@@ -93,6 +96,12 @@ const router = createRouter({
       name: 'admin-submissions',
       component: () => import('@/views/admin/AdminSubmissionsView.vue'),
       meta: { requiresAuth: true, requiresCertified: true, skeleton: 'list' },
+    },
+    {
+      path: '/institution',
+      name: 'institution-admin',
+      component: () => import('@/views/institution/InstitutionDashboardView.vue'),
+      meta: { requiresAuth: true, requiresInstitutionStaff: true, skeleton: 'dashboard' },
     },
     {
       path: '/categories',
@@ -217,6 +226,30 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'teacher', skeleton: 'detail' },
     },
     {
+      path: '/teacher/courses/:id/presence/:sessionId',
+      name: 'teacher-presence-live',
+      component: () => import('@/views/teacher/TeacherPresenceLiveView.vue'),
+      meta: { requiresAuth: true, role: 'teacher', hideLayout: true },
+    },
+    {
+      path: '/presence/check-in',
+      name: 'presence-check-in',
+      component: () => import('@/views/presence/PresenceCheckInView.vue'),
+      meta: { requiresAuth: true, role: 'student' },
+    },
+    {
+      path: '/presence/check-in/late',
+      name: 'presence-late-attempt',
+      component: () => import('@/views/presence/PresenceLateAttemptView.vue'),
+      meta: { requiresAuth: true, role: 'student' },
+    },
+    {
+      path: '/presence/relay/:sessionId',
+      name: 'presence-relay',
+      component: () => import('@/views/presence/PresenceRelayDisplayView.vue'),
+      meta: { requiresAuth: true, role: 'student', hideLayout: true },
+    },
+    {
       path: '/student',
       name: 'student-dashboard',
       component: () => import('@/views/student/StudentDashboardView.vue'),
@@ -232,6 +265,12 @@ const router = createRouter({
       path: '/student/history',
       name: 'student-history',
       component: () => import('@/views/student/StudentHistoryView.vue'),
+      meta: { requiresAuth: true, role: 'student', skeleton: 'list' },
+    },
+    {
+      path: '/student/calendar',
+      name: 'student-calendar',
+      component: () => import('@/views/student/StudentExamCalendarView.vue'),
       meta: { requiresAuth: true, role: 'student', skeleton: 'list' },
     },
     {
@@ -379,6 +418,10 @@ router.beforeEach((to, from) => {
     return '/account'
   }
 
+  if (to.meta.requiresInstitutionStaff && auth.isAuthenticated && !hasInstitutionAccess(auth.currentUser)) {
+    return '/account'
+  }
+
   if (to.meta.profileCompletion && auth.isAuthenticated) {
     return true
   }
@@ -395,12 +438,19 @@ router.beforeEach((to, from) => {
 
 router.afterEach((to) => {
   useUiStore().finishRouteLoading()
-  if (to.path.startsWith('/teacher') && to.path !== '/teacher/profile') {
+  const auth = useAuthStore()
+  if (to.path.startsWith('/teacher')) {
     localStorage.setItem(INTENDED_ROLE_KEY, 'teacher')
     localStorage.setItem(LAST_ACTIVE_ROLE_KEY, 'teacher')
-  } else if (to.path.startsWith('/student') && to.path !== '/student/profile') {
+    auth.applyWorkspaceFromRoute('teacher')
+  } else if (to.path.startsWith('/presence')) {
     localStorage.setItem(INTENDED_ROLE_KEY, 'student')
     localStorage.setItem(LAST_ACTIVE_ROLE_KEY, 'student')
+    auth.applyWorkspaceFromRoute('student')
+  } else if (to.path.startsWith('/student')) {
+    localStorage.setItem(INTENDED_ROLE_KEY, 'student')
+    localStorage.setItem(LAST_ACTIVE_ROLE_KEY, 'student')
+    auth.applyWorkspaceFromRoute('student')
   }
 })
 

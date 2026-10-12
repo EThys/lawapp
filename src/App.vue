@@ -62,10 +62,11 @@ const showPublicChrome = computed(
 
 async function syncApiData() {
   if (!isApiEnabled() || !auth.isAuthenticated) return
-  if (auth.isTeacher || auth.isCertified) {
+  const workspace = auth.activeWorkspace
+  if (auth.isCertified || workspace === 'teacher') {
     await evalStore.syncFromApi()
     await evalStore.syncAllTeacherSubmissions()
-  } else if (auth.isStudent) {
+  } else if (workspace === 'student') {
     // Catalogue « à répondre » uniquement — le passage se charge au démarrage de l’examen.
     await evalStore.syncStudentCatalog()
     await evalStore.refreshMySubmissionsForStudent()
@@ -82,6 +83,13 @@ watch(
     if (loggedIn) void syncApiData()
   },
 )
+
+watch(
+  () => auth.activeWorkspace,
+  (ws, prev) => {
+    if (ws && ws !== prev && auth.isAuthenticated) void syncApiData()
+  },
+)
 </script>
 
 <template>
@@ -96,7 +104,7 @@ watch(
     }"
   />
 
-  <div class="min-h-screen flex flex-col bg-paper">
+  <div class="min-h-app flex flex-col flex-1 w-full min-w-0 bg-paper">
     <AppHeader v-if="showPublicChrome" />
     <StudentFlowHeader v-if="showStudentFlowHeader" />
 

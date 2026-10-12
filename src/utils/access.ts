@@ -1,6 +1,12 @@
 import type { Evaluation } from '@/types'
+import type { User } from '@/types/auth'
 import type { useCourseStore } from '@/stores/courses'
 import { getEvaluationAvailabilityMessage, isEvaluationAvailable } from '@/utils/helpers'
+import {
+  getStudentParcoursJoinBlockReason,
+  isAccessCodeExpired,
+} from '@/utils/evaluationAudience'
+import { usePresenceSessionStore } from '@/stores/presenceSessions'
 
 export function getTodayDateString(): string {
   const d = new Date()
@@ -36,8 +42,12 @@ export function getEvaluationAccessDeniedReason(
 
   if (evaluation.presentOnly && evaluation.courseId) {
     const sessionDate = evaluation.sessionDate ?? getTodayDateString()
-    if (!courseStore.isPresent(evaluation.courseId, studentUserId, sessionDate)) {
-      return 'Cette évaluation est réservée aux présents en salle. Votre matricule n\'a pas pointé sa présence sur le réseau local du cours.'
+    const presenceStore = usePresenceSessionStore()
+    const presentQr =
+      sessionDate === getTodayDateString() &&
+      presenceStore.isPresentForClassroomToday(evaluation.courseId, studentUserId)
+    if (!presentQr && !courseStore.isPresent(evaluation.courseId, studentUserId, sessionDate)) {
+      return 'Cette évaluation est réservée aux présents en salle. Pointez la présence QR pendant la session du cours.'
     }
   }
 
@@ -48,9 +58,18 @@ export function getEvaluationJoinBlockReason(
   evaluation: Evaluation,
   studentUserId?: string,
   courseStore?: CourseStore,
+  user?: User | null,
 ): string | null {
   if (evaluation.status === 'draft') return 'Cette évaluation n\'est pas encore publiée.'
   if (evaluation.status === 'closed') return 'Cette évaluation est terminée.'
+  if (isAccessCodeExpired(evaluation)) {
+    return 'Le code d’accès a expiré (délai de l’évaluation dépassé).'
+  }
+
+  if (user && studentUserId) {
+    const parcoursBlock = getStudentParcoursJoinBlockReason(evaluation, user, studentUserId)
+    if (parcoursBlock) return parcoursBlock
+  }
 
   const scheduleMsg = getEvaluationAvailabilityMessage({
     availableFrom: evaluation.availableFrom ?? null,
