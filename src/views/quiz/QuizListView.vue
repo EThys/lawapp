@@ -29,10 +29,10 @@ onMounted(() => {
           Droit Ludique
         </RouterLink>
         <span class="font-display text-lg text-ink">Quiz juridiques</span>
-        <RouterLink v-if="isTeacher" to="/quiz/simple/create">
+        <RouterLink v-if="isTeacher" to="/quiz/create">
           <AppButton size="sm">
             <Plus class="w-4 h-4" />
-            Quiz simple
+            Créer un quiz
           </AppButton>
         </RouterLink>
         <span v-else class="w-16" aria-hidden="true" />
@@ -62,10 +62,10 @@ onMounted(() => {
 
       <div v-else-if="quizStore.quizzes.length === 0" class="p-6 border border-line bg-white text-center space-y-4">
         <p class="text-sm text-ink-muted">Aucun quiz disponible pour le moment.</p>
-        <RouterLink v-if="isTeacher" to="/quiz/simple/create">
+        <RouterLink v-if="isTeacher" to="/quiz/create">
           <AppButton>
             <Plus class="w-4 h-4" />
-            Créer un quiz simple
+            Créer un quiz
           </AppButton>
         </RouterLink>
       </div>

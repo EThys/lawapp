@@ -15,6 +15,7 @@ export const useQuizStore = defineStore('quiz', () => {
   const notionTypes = ref<QuizNotionType[]>([])
   const current = ref<QuizDetail | null>(null)
   const loading = ref(false)
+  const notionTypesLoading = ref(false)
   const creating = ref(false)
   const error = ref<string | null>(null)
 
@@ -40,11 +41,15 @@ export const useQuizStore = defineStore('quiz', () => {
       notionTypes.value = []
       return
     }
+    notionTypesLoading.value = true
+    error.value = null
     try {
       notionTypes.value = await listNotionTypes()
     } catch (e) {
       notionTypes.value = []
       error.value = extractApiError(e)
+    } finally {
+      notionTypesLoading.value = false
     }
   }
 
@@ -92,6 +97,7 @@ export const useQuizStore = defineStore('quiz', () => {
     notionTypes,
     current,
     loading,
+    notionTypesLoading,
     creating,
     error,
     fetchList,
