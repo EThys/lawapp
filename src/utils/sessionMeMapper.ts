@@ -6,6 +6,8 @@ import type {
 } from '@/types/auth'
 import type { InstitutionMembership } from '@/types/platformRoles'
 import { unwrapObject } from '@/utils/apiHelpers'
+import { rememberActiveRole } from '@/utils/memberProfile'
+import type { UserRole } from '@/types/auth'
 
 function normalizeAffiliationStatus(raw: unknown): InstitutionAffiliationStatus {
   const s = String(raw ?? 'pending').toLowerCase()
@@ -116,10 +118,34 @@ export function mergeSessionMeIntoUser(base: User, payload: unknown): User {
   const hasTeacherProfile = base.hasTeacherProfile || teacherId != null
   const hasStudentProfile = base.hasStudentProfile || studentId != null
 
+  const apiWorkspace = pickString(
+    root,
+    'activeWorkspace',
+    'activeRole',
+    'preferredRole',
+    'lastActiveRole',
+  )
+  const apiWorkspaceUser = pickString(
+    userNode,
+    'activeWorkspace',
+    'activeRole',
+    'preferredRole',
+    'lastActiveRole',
+  )
+  const workspaceFromApi = (apiWorkspace || apiWorkspaceUser) as UserRole
+
   let role = base.role
   if (role === 'pending') {
     if (hasTeacherProfile && !hasStudentProfile) role = 'teacher'
     else if (hasStudentProfile && !hasTeacherProfile) role = 'student'
+  }
+  if (
+    hasTeacherProfile &&
+    hasStudentProfile &&
+    (workspaceFromApi === 'teacher' || workspaceFromApi === 'student')
+  ) {
+    role = workspaceFromApi
+    rememberActiveRole(workspaceFromApi)
   }
 
   return {

@@ -9,7 +9,16 @@ import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import RoleWorkspaceSwitcher from '@/components/account/RoleWorkspaceSwitcher.vue'
-import { AlertCircle, Shield, Trash2, GraduationCap, LayoutDashboard, BookOpen, Building2 } from '@lucide/vue'
+import {
+  AlertCircle,
+  Shield,
+  Trash2,
+  GraduationCap,
+  LayoutDashboard,
+  BookOpen,
+  Building2,
+  ArrowRight,
+} from '@lucide/vue'
 import { hasInstitutionAccess } from '@/utils/platformAccess'
 
 const router = useRouter()
@@ -28,6 +37,7 @@ const deleteLoading = ref(false)
 const apiMode = computed(() => isApiEnabled())
 const user = computed(() => auth.currentUser)
 const showInstitutionAdmin = computed(() => hasInstitutionAccess(user.value))
+const activeWorkspace = computed(() => auth.activeWorkspace)
 
 async function handleChangePassword() {
   changeError.value = ''
@@ -148,54 +158,111 @@ async function handleDeleteAccount() {
       </form>
     </AppCard>
 
-    <AppCard class="p-6 space-y-5">
-      <div>
-        <h2 class="font-semibold text-ink">Mes espaces</h2>
-        <p class="mt-1 text-sm text-ink-muted">Un compte, deux tableaux de bord. Basculez quand vous voulez.</p>
+    <AppCard class="account-spaces p-6 sm:p-7">
+      <div class="account-spaces__head">
+        <div>
+          <h2 class="font-semibold text-ink text-lg">Mes espaces</h2>
+          <p class="mt-1 text-sm text-ink-muted max-w-md">
+            Un compte, deux tableaux de bord. Basculez quand vous voulez.
+          </p>
+        </div>
+        <RoleWorkspaceSwitcher v-if="auth.showWorkspaceSwitcher" variant="panel" class="account-spaces__switch" />
       </div>
+      <p
+        v-if="auth.showWorkspaceSwitcher && !auth.canSwitchWorkspace"
+        class="text-xs text-ink-muted mb-4 -mt-1"
+      >
+        Activez les deux profils pour basculer librement entre les espaces.
+      </p>
 
-      <RoleWorkspaceSwitcher v-if="auth.canSwitchWorkspace" variant="panel" />
-
-      <div class="grid gap-4 sm:grid-cols-2">
-        <div class="border border-line p-4 space-y-3">
-          <div class="flex items-center gap-2">
-            <GraduationCap class="w-5 h-5 text-accent" />
-            <h3 class="font-medium text-ink">Enseignant</h3>
-            <AppBadge v-if="auth.hasTeacherQuality" variant="success">Actif</AppBadge>
-            <AppBadge v-else variant="muted">À configurer</AppBadge>
+      <div class="account-spaces__grid">
+        <article
+          class="account-spaces__tile"
+          :class="{
+            'account-spaces__tile--live': activeWorkspace === 'teacher',
+            'account-spaces__tile--muted': !auth.hasTeacherQuality,
+          }"
+        >
+          <div class="account-spaces__tile-top">
+            <span class="account-spaces__icon account-spaces__icon--teacher" aria-hidden="true">
+              <GraduationCap class="w-5 h-5" />
+            </span>
+            <div class="min-w-0">
+              <h3 class="font-semibold text-ink">Enseignant</h3>
+              <p class="text-xs text-ink-muted mt-0.5">
+                {{
+                  auth.hasTeacherQuality
+                    ? 'Évaluations, promotions, présences'
+                    : 'Profil à compléter'
+                }}
+              </p>
+            </div>
+            <AppBadge
+              v-if="activeWorkspace === 'teacher' && auth.hasTeacherQuality"
+              variant="success"
+              class="shrink-0"
+            >
+              Ouvert
+            </AppBadge>
           </div>
-          <p class="text-sm text-ink-muted">
-            Créer des évaluations, suivre les promotions et gérer les présences.
-          </p>
-          <RouterLink to="/teacher/profile">
-            <AppButton size="sm" variant="outline">
-              {{
-                auth.hasTeacherQuality
-                  ? 'Profil enseignant'
-                  : 'Activer l’espace enseignant'
-              }}
-            </AppButton>
-          </RouterLink>
-        </div>
-
-        <div class="border border-line p-4 space-y-3">
-          <div class="flex items-center gap-2">
-            <BookOpen class="w-5 h-5 text-ink" />
-            <h3 class="font-medium text-ink">Étudiant</h3>
-            <AppBadge v-if="auth.hasStudentQuality" variant="success">Actif</AppBadge>
-            <AppBadge v-else variant="muted">À configurer</AppBadge>
+          <div class="account-spaces__actions">
+            <RouterLink v-if="auth.hasTeacherQuality" to="/teacher">
+              <AppButton size="sm">
+                Tableau de bord
+                <ArrowRight class="w-4 h-4" />
+              </AppButton>
+            </RouterLink>
+            <RouterLink to="/teacher/profile">
+              <AppButton size="sm" :variant="auth.hasTeacherQuality ? 'outline' : 'primary'">
+                {{ auth.hasTeacherQuality ? 'Profil' : 'Activer' }}
+              </AppButton>
+            </RouterLink>
           </div>
-          <p class="text-sm text-ink-muted">
-            Rejoindre des groupes, passer des examens et consulter vos résultats.
-          </p>
-          <RouterLink to="/student/profile">
-            <AppButton size="sm" variant="outline">
-              {{
-                auth.hasStudentQuality ? 'Profil étudiant' : 'Activer l’espace étudiant'
-              }}
-            </AppButton>
-          </RouterLink>
-        </div>
+        </article>
+
+        <article
+          class="account-spaces__tile"
+          :class="{
+            'account-spaces__tile--live': activeWorkspace === 'student',
+            'account-spaces__tile--muted': !auth.hasStudentQuality,
+          }"
+        >
+          <div class="account-spaces__tile-top">
+            <span class="account-spaces__icon account-spaces__icon--student" aria-hidden="true">
+              <BookOpen class="w-5 h-5" />
+            </span>
+            <div class="min-w-0">
+              <h3 class="font-semibold text-ink">Étudiant</h3>
+              <p class="text-xs text-ink-muted mt-0.5">
+                {{
+                  auth.hasStudentQuality
+                    ? 'Groupes, examens, résultats'
+                    : 'Profil à compléter'
+                }}
+              </p>
+            </div>
+            <AppBadge
+              v-if="activeWorkspace === 'student' && auth.hasStudentQuality"
+              variant="success"
+              class="shrink-0"
+            >
+              Ouvert
+            </AppBadge>
+          </div>
+          <div class="account-spaces__actions">
+            <RouterLink v-if="auth.hasStudentQuality" to="/student">
+              <AppButton size="sm">
+                Tableau de bord
+                <ArrowRight class="w-4 h-4" />
+              </AppButton>
+            </RouterLink>
+            <RouterLink to="/student/profile">
+              <AppButton size="sm" :variant="auth.hasStudentQuality ? 'outline' : 'primary'">
+                {{ auth.hasStudentQuality ? 'Profil' : 'Activer' }}
+              </AppButton>
+            </RouterLink>
+          </div>
+        </article>
       </div>
     </AppCard>
 
@@ -222,3 +289,88 @@ async function handleDeleteAccount() {
     </AppCard>
   </div>
 </template>
+
+<style scoped>
+.account-spaces__head {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .account-spaces__head {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+
+  .account-spaces__switch {
+    flex-shrink: 0;
+  }
+}
+
+.account-spaces__grid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+@media (min-width: 640px) {
+  .account-spaces__grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+}
+
+.account-spaces__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem 1.05rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-line);
+  background: linear-gradient(180deg, #fff 0%, var(--color-paper-warm) 100%);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.account-spaces__tile--live {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-line));
+  box-shadow: 0 8px 24px rgb(25 118 210 / 0.08);
+}
+
+.account-spaces__tile--muted {
+  opacity: 0.92;
+}
+
+.account-spaces__tile-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.account-spaces__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.65rem;
+  flex-shrink: 0;
+}
+
+.account-spaces__icon--teacher {
+  background: color-mix(in srgb, var(--color-accent-light) 70%, white);
+  color: var(--color-accent);
+}
+
+.account-spaces__icon--student {
+  background: color-mix(in srgb, var(--color-line) 40%, white);
+  color: var(--color-ink);
+}
+
+.account-spaces__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+</style>

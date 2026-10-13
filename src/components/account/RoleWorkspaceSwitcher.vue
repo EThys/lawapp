@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import type { UserRole } from '@/types/auth'
 import { GraduationCap, BookOpen } from '@lucide/vue'
+import { appToast } from '@/utils/toast'
 
 const props = withDefaults(
   defineProps<{
-    /** Barre compacte dans la navbar vs bloc plus large (compte). */
-    variant?: 'navbar' | 'panel'
+    variant?: 'navbar' | 'panel' | 'icons'
   }>(),
   { variant: 'navbar' },
 )
@@ -17,105 +17,223 @@ const auth = useAuthStore()
 const router = useRouter()
 
 const active = computed(() => auth.activeWorkspace)
-const canSwitch = computed(() => auth.canSwitchWorkspace)
+const visible = computed(() => auth.showWorkspaceSwitcher)
+const switching = ref(false)
 
-function go(role: UserRole) {
+const thumbStyle = computed(() => ({
+  transform: active.value === 'student' ? 'translateX(0%)' : 'translateX(100%)',
+}))
+
+function hasQuality(role: UserRole): boolean {
+  return role === 'teacher' ? auth.hasTeacherQuality : auth.hasStudentQuality
+}
+
+function profilePath(role: UserRole): string {
+  return role === 'teacher' ? '/teacher/profile' : '/student/profile'
+}
+
+async function go(role: UserRole) {
+  if (switching.value) return
+
+  if (!hasQuality(role)) {
+    appToast.info(
+      role === 'teacher'
+        ? 'Activez d’abord votre profil enseignant pour basculer.'
+        : 'Activez d’abord votre profil étudiant pour basculer.',
+    )
+    await router.push(profilePath(role))
+    return
+  }
+
   if (role === active.value) return
-  if (!auth.setActiveWorkspace(role)) return
-  void router.push(role === 'teacher' ? '/teacher' : '/student')
+  if (!auth.canSwitchWorkspace) return
+
+  switching.value = true
+  try {
+    const ok = await auth.setActiveWorkspace(role)
+    if (!ok) return
+    await router.push(role === 'teacher' ? '/teacher' : '/student')
+  } finally {
+    switching.value = false
+  }
 }
 </script>
 
 <template>
   <div
-    v-if="canSwitch"
-    class="role-workspace-switcher"
-    :class="`role-workspace-switcher--${variant}`"
-    role="group"
-    aria-label="Changer d'espace"
+    v-if="visible"
+    class="workspace-segment"
+    :class="[
+      `workspace-segment--${variant}`,
+      { 'workspace-segment--busy': switching, 'workspace-segment--partial': !auth.canSwitchWorkspace },
+    ]"
+    role="tablist"
+    aria-label="Basculer entre espace enseignant et espace étudiant"
   >
-    <button
-      type="button"
-      class="role-workspace-switcher__btn"
-      :class="{ 'role-workspace-switcher__btn--active': active === 'teacher' }"
-      :aria-pressed="active === 'teacher'"
-      title="Espace enseignant"
-      @click="go('teacher')"
-    >
-      <GraduationCap class="w-4 h-4 shrink-0" />
-      <span class="role-workspace-switcher__label">Enseignant</span>
-    </button>
-    <button
-      type="button"
-      class="role-workspace-switcher__btn"
-      :class="{ 'role-workspace-switcher__btn--active': active === 'student' }"
-      :aria-pressed="active === 'student'"
-      title="Espace étudiant"
-      @click="go('student')"
-    >
-      <BookOpen class="w-4 h-4 shrink-0" />
-      <span class="role-workspace-switcher__label">Étudiant</span>
-    </button>
+    <div class="workspace-segment__track">
+      <div
+        v-if="auth.canSwitchWorkspace"
+        class="workspace-segment__thumb"
+        :style="thumbStyle"
+        aria-hidden="true"
+      />
+      <button
+        type="button"
+        role="tab"
+        class="workspace-segment__tab"
+        :class="{
+          'workspace-segment__tab--active': active === 'student' && hasQuality('student'),
+          'workspace-segment__tab--needs-setup': !hasQuality('student'),
+        }"
+        :aria-selected="active === 'student'"
+        :disabled="switching"
+        :title="hasQuality('student') ? 'Espace étudiant' : 'Activer le profil étudiant'"
+        @click="go('student')"
+      >
+        <BookOpen class="workspace-segment__icon" aria-hidden="true" />
+        <span v-if="variant !== 'icons'" class="workspace-segment__label">Étudiant</span>
+        <span v-if="variant === 'icons'" class="sr-only">Espace étudiant</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="workspace-segment__tab"
+        :class="{
+          'workspace-segment__tab--active': active === 'teacher' && hasQuality('teacher'),
+          'workspace-segment__tab--needs-setup': !hasQuality('teacher'),
+        }"
+        :aria-selected="active === 'teacher'"
+        :disabled="switching"
+        :title="hasQuality('teacher') ? 'Espace enseignant' : 'Activer le profil enseignant'"
+        @click="go('teacher')"
+      >
+        <GraduationCap class="workspace-segment__icon" aria-hidden="true" />
+        <span v-if="variant !== 'icons'" class="workspace-segment__label">Enseignant</span>
+        <span v-if="variant === 'icons'" class="sr-only">Espace enseignant</span>
+      </button>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.role-workspace-switcher {
-  display: inline-flex;
-  align-items: stretch;
-  border: 1px solid var(--color-line);
-  background: var(--color-paper-warm);
-  border-radius: 0;
+.workspace-segment {
+  --ws-track: color-mix(in srgb, var(--color-line) 35%, var(--color-paper-warm));
+  --ws-thumb-shadow: 0 1px 3px rgb(0 0 0 / 0.12), 0 1px 1px rgb(0 0 0 / 0.06);
 }
 
-.role-workspace-switcher--navbar {
-  max-width: min(100%, 16rem);
+.workspace-segment--navbar {
+  max-width: min(100%, 15.5rem);
 }
 
-.role-workspace-switcher--panel {
+.workspace-segment--panel {
   width: 100%;
   max-width: 22rem;
 }
 
-.role-workspace-switcher__btn {
+.workspace-segment--icons {
+  width: auto;
+}
+
+.workspace-segment--icons .workspace-segment__track {
+  min-height: 2.125rem;
+  width: 5.5rem;
+}
+
+.workspace-segment--icons .workspace-segment__tab {
+  padding: 0.35rem;
+}
+
+.workspace-segment--icons .workspace-segment__icon {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.workspace-segment__track {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
+  padding: 3px;
+  border-radius: 9999px;
+  background: var(--ws-track);
+  min-height: 2.25rem;
+}
+
+.workspace-segment--panel .workspace-segment__track {
+  min-height: 2.75rem;
+}
+
+.workspace-segment__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  height: calc(100% - 6px);
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: var(--ws-thumb-shadow);
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  pointer-events: none;
+}
+
+.workspace-segment__tab {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
-  flex: 1 1 0;
-  min-height: 2.75rem;
-  padding: 0.5rem 0.65rem;
+  padding: 0.35rem 0.5rem;
   border: 0;
   background: transparent;
   color: var(--color-ink-muted);
-  font-size: 0.75rem;
-  font-weight: 500;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: color 0.2s ease, opacity 0.2s ease;
+  border-radius: 9999px;
 }
 
-.role-workspace-switcher__btn + .role-workspace-switcher__btn {
-  border-left: 1px solid var(--color-line);
-}
-
-.role-workspace-switcher__btn:hover {
-  background: rgb(255 255 255 / 0.65);
+.workspace-segment__tab--active {
   color: var(--color-ink);
 }
 
-.role-workspace-switcher__btn--active {
-  background: white;
-  color: var(--color-ink);
-  box-shadow: inset 0 -2px 0 var(--color-accent);
+.workspace-segment__tab--needs-setup {
+  opacity: 0.55;
 }
 
-.role-workspace-switcher--navbar .role-workspace-switcher__label {
+.workspace-segment--partial .workspace-segment__tab--needs-setup {
+  opacity: 0.85;
+  color: var(--color-accent);
+}
+
+.workspace-segment__tab:disabled {
+  cursor: wait;
+  opacity: 0.85;
+}
+
+.workspace-segment__icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex-shrink: 0;
+}
+
+.workspace-segment--navbar .workspace-segment__label {
   display: none;
 }
 
 @media (min-width: 768px) {
-  .role-workspace-switcher--navbar .role-workspace-switcher__label {
+  .workspace-segment--navbar .workspace-segment__label {
     display: inline;
   }
+
+  .workspace-segment--navbar .workspace-segment__tab {
+    font-size: 0.75rem;
+  }
+}
+
+.workspace-segment--busy .workspace-segment__thumb {
+  opacity: 0.92;
 }
 </style>

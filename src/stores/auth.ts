@@ -14,7 +14,7 @@ import type {
 } from '@/types/auth'
 import { hashPassword, validateEmail, validatePassword, validateCdPhone, phoneForApi } from '@/utils/auth'
 import { generateId } from '@/utils/helpers'
-import { isInstitutionSelectable, PARTNER_INSTITUTION } from '@/data/universities'
+import { DEMO_DEFAULT_INSTITUTION_LABEL } from '@/config/demoDefaults'
 import {
   isApiEnabled,
   TOKEN_KEY,
@@ -23,6 +23,7 @@ import {
   INTENDED_ROLE_KEY,
 } from '@/config/features'
 import { loginApi, registerApi, changePasswordApi, recoverUserApi, certifyUserApi, deleteAccountApi, refreshTokenApi } from '@/api/auth'
+import { updateActiveWorkspace } from '@/api/me'
 import { resetForgottenPassword as resetForgottenPasswordApi } from '@/api/passwordReset'
 import { fetchSessionMe } from '@/api/me'
 import { submitMyAcademicPath } from '@/api/academicPath'
@@ -141,7 +142,7 @@ function mapBackendUser(data: BackendLoginResponse, extras: Partial<User> = {}):
     city: u.city,
     certified: u.certified ?? u.isCertified,
     premium: u.premium ?? u.isPremium,
-    institution: PARTNER_INSTITUTION,
+    institution: DEMO_DEFAULT_INSTITUTION_LABEL,
     createdAt: new Date().toISOString(),
     hasTeacherProfile: false,
     hasStudentProfile: false,
@@ -233,12 +234,12 @@ export function postAuthHome(
     options?.pendingRegistrationRole ??
     readPendingRegistrationRole(options?.email ?? undefined)
 
-  if (hasTeacher && pendingRoles.includes('student')) return '/student/profile'
-  if (hasStudent && pendingRoles.includes('teacher')) return '/teacher/profile'
+  if (hasTeacher && pendingRoles.includes('student')) return '/student'
+  if (hasStudent && pendingRoles.includes('teacher')) return '/teacher'
 
   if (pendingRoles.length > 1) return '/onboarding/profile'
-  if (registrationRole === 'teacher' || pendingRoles[0] === 'teacher') return '/teacher/profile'
-  if (registrationRole === 'student' || pendingRoles[0] === 'student') return '/student/profile'
+  if (registrationRole === 'teacher' || pendingRoles[0] === 'teacher') return '/teacher'
+  if (registrationRole === 'student' || pendingRoles[0] === 'student') return '/student'
 
   return '/onboarding/profile'
 }
@@ -294,6 +295,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   const canSwitchWorkspace = computed(
     () => hasTeacherQuality.value && hasStudentQuality.value,
+  )
+
+  /** Au moins un espace actif : afficher le switch (activation de l’autre si besoin). */
+  const showWorkspaceSwitcher = computed(
+    () => hasTeacherQuality.value || hasStudentQuality.value,
   )
 
   /** Accès à l’espace enseignant (profil ou session). */
@@ -457,8 +463,7 @@ export const useAuthStore = defineStore('auth', () => {
       try {
         const res = await submitMyAcademicPath({
           etablissementId: etabId,
-          facultyName: faculty,
-          ...(input.facultyId != null ? { facultyId: input.facultyId } : {}),
+          ...(input.facultyId != null ? { facultyId: input.facultyId } : { facultyName: faculty }),
           ...(promotionId != null ? { promotionId } : {}),
           ...(input.classroomId
             ? { classroomId: Number.parseInt(input.classroomId, 10) || undefined }
@@ -544,7 +549,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
   }
 
-  function setActiveWorkspace(role: UserRole): boolean {
+  async function setActiveWorkspace(role: UserRole): Promise<boolean> {
     const u = currentUser.value
     if (!u) return false
     if (role === 'teacher' && !hasTeacherQuality.value) return false
@@ -552,6 +557,11 @@ export const useAuthStore = defineStore('auth', () => {
 
     if (isApiEnabled()) {
       updateStoredUser({ role })
+      try {
+        await updateActiveWorkspace(role)
+      } catch {
+        /* localStorage + user.role restent la source de vérité si l’API échoue */
+      }
     } else {
       const idx = users.value.findIndex((x) => x.id === u.id)
       if (idx < 0) return false
@@ -559,6 +569,7 @@ export const useAuthStore = defineStore('auth', () => {
       persistUsers()
     }
     rememberActiveRole(role)
+    saveProfileSnapshot({ ...u, role })
     return true
   }
 
@@ -808,9 +819,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     const institution = payload.institution?.trim()
-    if (institution && !isInstitutionSelectable(institution)) {
-      return { ok: false, error: `Seul l'établissement partenaire (${PARTNER_INSTITUTION}) est disponible pour l'instant.` }
-    }
 
     const user: User = {
       id: generateId(),
@@ -820,7 +828,7 @@ export const useAuthStore = defineStore('auth', () => {
       lastName: payload.lastName.trim(),
       role: 'teacher',
       hasTeacherProfile: true,
-      institution: institution || PARTNER_INSTITUTION,
+      institution: institution || DEMO_DEFAULT_INSTITUTION_LABEL,
       createdAt: new Date().toISOString(),
     }
 
@@ -860,9 +868,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     const institution = payload.institution?.trim()
-    if (institution && !isInstitutionSelectable(institution)) {
-      return { ok: false, error: `Seul l'établissement partenaire (${PARTNER_INSTITUTION}) est disponible pour l'instant.` }
-    }
 
     const user: User = {
       id: generateId(),
@@ -873,7 +878,7 @@ export const useAuthStore = defineStore('auth', () => {
       role: 'student',
       hasStudentProfile: true,
       studentId: payload.studentId.trim(),
-      institution: institution || PARTNER_INSTITUTION,
+      institution: institution || DEMO_DEFAULT_INSTITUTION_LABEL,
       createdAt: new Date().toISOString(),
     }
 
@@ -1161,6 +1166,7 @@ export const useAuthStore = defineStore('auth', () => {
     hasStudentQuality,
     activeWorkspace,
     canSwitchWorkspace,
+    showWorkspaceSwitcher,
     isTeacher,
     isStudent,
     needsProfile,

@@ -18,6 +18,7 @@ import {
   RefreshCw,
   UserCog,
   ChevronDown,
+  AlertCircle,
 } from '@lucide/vue'
 
 const props = withDefaults(
@@ -59,6 +60,14 @@ const roleLabel = computed(() => {
   const role = auth.currentUser?.role
   if (isAdmin.value) return 'Administrateur'
   return role ? (ROLE_LABELS[role] ?? 'Enseignant') : 'Enseignant'
+})
+
+const profileIncomplete = computed(() => {
+  if (isAdmin.value) return false
+  const u = auth.currentUser
+  if (!auth.hasTeacherQuality) return true
+  if (isApiEnabled() && u && !u.hasTeacherProfile && !auth.teacherProfile?.teacherId) return true
+  return false
 })
 
 async function refreshServer() {
@@ -116,7 +125,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
     </div>
 
     <div class="shell-navbar__right">
-      <RoleWorkspaceSwitcher v-if="!isAdmin" variant="navbar" class="hidden sm:flex" />
+      <RoleWorkspaceSwitcher v-if="!isAdmin && auth.showWorkspaceSwitcher" variant="icons" class="hidden sm:flex" />
 
       <div class="shell-navbar__actions">
         <button
@@ -154,7 +163,9 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
           aria-haspopup="menu"
           @click="menuOpen = !menuOpen"
         >
-          <span class="shell-navbar__avatar">{{ initials }}</span>
+          <span class="shell-navbar__avatar" :class="{ 'shell-navbar__avatar--alert': profileIncomplete }">
+            {{ initials }}
+          </span>
           <span class="shell-navbar__user-meta hidden md:flex">
             <span class="shell-navbar__user-name truncate">{{ fullName }}</span>
             <span class="shell-navbar__user-role">{{ roleLabel }}</span>
@@ -170,12 +181,33 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
             <RouterLink
               :to="isAdmin ? '/account' : '/teacher/profile'"
               class="shell-navbar__dropdown-item"
+              :class="{ 'shell-navbar__dropdown-item--highlight': profileIncomplete && !isAdmin }"
+              role="menuitem"
+              @click="menuOpen = false"
+            >
+              <AlertCircle v-if="profileIncomplete && !isAdmin" class="w-4 h-4" />
+              <UserCog v-else class="w-4 h-4" />
+              {{
+                isAdmin
+                  ? 'Compte'
+                  : profileIncomplete
+                    ? 'Compléter mon profil'
+                    : 'Mon profil'
+              }}
+            </RouterLink>
+            <RouterLink
+              v-if="!isAdmin"
+              to="/account"
+              class="shell-navbar__dropdown-item"
               role="menuitem"
               @click="menuOpen = false"
             >
               <UserCog class="w-4 h-4" />
-              {{ isAdmin ? 'Compte' : 'Profil enseignant' }}
+              Compte et espaces
             </RouterLink>
+            <div v-if="!isAdmin && auth.showWorkspaceSwitcher" class="shell-navbar__dropdown-switcher">
+              <RoleWorkspaceSwitcher variant="icons" />
+            </div>
             <button
               type="button"
               class="shell-navbar__dropdown-item shell-navbar__dropdown-item--danger"

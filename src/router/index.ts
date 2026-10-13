@@ -386,12 +386,9 @@ router.beforeEach((to, from) => {
 
   if (to.name === 'profile-onboarding' && auth.isAuthenticated) {
     const u = auth.currentUser
-    if (u?.hasTeacherProfile || u?.hasStudentProfile) {
+    if (u?.hasTeacherProfile && u?.hasStudentProfile) {
       return auth.homePath()
     }
-    const pendingRole = readPendingRegistrationRole(u?.email)
-    if (pendingRole === 'teacher') return '/teacher/profile'
-    if (pendingRole === 'student') return '/student/profile'
   }
 
   if (auth.isAuthenticated && auth.needsProfile) {
