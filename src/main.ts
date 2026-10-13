@@ -6,6 +6,7 @@ import { vReveal } from './directives/reveal'
 import { seedDemoData, refreshDemoLiveData } from './data/demoSeed'
 import 'vue-sonner/style.css'
 import './style.css'
+import '@/components/layout/dashboard.css'
 
 function hideBootSplash() {
   const splash = document.getElementById('boot-splash')
@@ -28,6 +29,7 @@ function showBootError(message: string) {
 
 import { isApiEnabled } from '@/config/features'
 import { resolveApiBase, resolveAuthBase } from '@/config/api'
+import { bootLoadInterruptedMessage, bootStartFailedMessage } from '@/utils/userFacingErrors'
 
 async function bootstrap() {
   if (import.meta.env.DEV && isApiEnabled()) {

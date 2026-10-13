@@ -1,5 +1,6 @@
 import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@/config/features'
 import { apiPath, authPath, v1Path, rootPath } from '@/config/api'
+import { networkUnreachableMessage } from '@/utils/userFacingErrors'
 
 export interface HttpError extends Error {
   status?: number
