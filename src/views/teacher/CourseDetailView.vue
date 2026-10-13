@@ -3,7 +3,7 @@ import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useCourseStore } from '@/stores/courses'
-import { useClassroomStore, mapClassroomToCourse } from '@/stores/classrooms'
+import { useClassroomStore, mapClassroomToCourse, persistClassroomAsLocalCourse } from '@/stores/classrooms'
 import { useStudentStore } from '@/stores/students'
 import { isApiEnabled } from '@/config/features'
 import { listClassroomUsers } from '@/api/classrooms'
@@ -340,10 +340,13 @@ onMounted(async () => {
       pageReady.value = true
       return
     }
-    apiCourse.value = mapClassroomToCourse(
+    apiCourse.value = persistClassroomAsLocalCourse(
       classroom,
       classroomStore.currentUsers,
-      `${auth.currentUser.firstName} ${auth.currentUser.lastName}`,
+      {
+        id: auth.currentUser.id,
+        displayName: `${auth.currentUser.firstName} ${auth.currentUser.lastName}`.trim(),
+      },
     )
     salleFilter.value = String(apiClassroomId.value)
     await loadAllMemberships()

@@ -28,6 +28,7 @@ import WorkspaceQualityPrompt from '@/components/account/WorkspaceQualityPrompt.
 import TeacherInstitutionAlerts from '@/components/teacher/TeacherInstitutionAlerts.vue'
 
 import DashboardSection from '@/components/layout/DashboardSection.vue'
+import DashboardTile from '@/components/layout/DashboardTile.vue'
 
 import AppAttendanceCalendar from '@/components/attendance/AppAttendanceCalendar.vue'
 
@@ -77,16 +78,6 @@ const presenceCourseFilter = ref('all')
 
 const teacherId = computed(() => auth.currentUser?.id ?? '')
 
-/** Afficher le bandeau seulement si la qualité enseignant n’est vraiment pas acquise. */
-const needsTeacherProfile = computed(() => {
-  if (!isApiEnabled()) return false
-  const u = auth.currentUser
-  if (u?.hasTeacherProfile || u?.teacherProfileId) return false
-  if (auth.teacherProfile?.teacherId) return false
-  if (teacherStore.myProfile?.teacherId) return false
-  return true
-})
-
 onMounted(() => {
   if (isApiEnabled()) void teacherStore.loadMyProfile()
   if (isApiEnabled()) void store.syncFromApi()
@@ -116,7 +107,13 @@ const myClass = computed(() => {
   if (!auth.currentUser) return null
   if (isApiEnabled()) {
     const api = classroomStore.myClassrooms[0]
-    return api ? classroomStore.getMappedCourse(api.id) : null
+    const user = auth.currentUser
+    return api
+      ? classroomStore.getMappedCourse(api.id, {
+          id: user.id,
+          displayName: `${user.firstName} ${user.lastName}`.trim(),
+        })
+      : null
   }
   const courses = courseStore.getCoursesForTeacher(auth.currentUser.id)
   return courses[0] ?? null
@@ -276,35 +273,22 @@ function shareClassLink() {
 
   <DashboardPage>
 
-    <DashboardSection spacing="loose">
+    <DashboardSection spacing="loose" variant="intro">
 
     <WorkspaceQualityPrompt
       v-if="!auth.hasStudentQuality"
       v-reveal="96"
-      class="mb-6"
+      class="mb-4"
       target="student"
     />
 
     <TeacherInstitutionAlerts v-reveal="97" />
 
-    <AppCard
-      v-if="needsTeacherProfile"
-      v-reveal="98"
-      class="mb-6 p-4 border-warning/30 bg-warning-bg/40"
-    >
-      <p class="text-sm text-ink">
-        Complétez votre <strong>profil enseignant</strong> pour publier des évaluations sur le serveur.
-      </p>
-      <RouterLink to="/teacher/profile" class="inline-block mt-3">
-        <AppButton size="sm">Configurer mon profil</AppButton>
-      </RouterLink>
-    </AppCard>
-
     <div v-reveal class="min-w-0">
 
       <p class="label-caps mb-2">Espace enseignant</p>
 
-      <h1 class="font-display text-2xl sm:text-3xl text-ink tracking-tight break-words">
+      <h1 class="font-display text-2xl sm:text-3xl text-brand-dark tracking-tight break-words">
 
         Bonjour, {{ auth.currentUser?.firstName }}
 
@@ -365,71 +349,36 @@ function shareClassLink() {
     >
 
       <div class="dashboard-tiles dashboard-tiles--4 mb-5">
-
-        <RouterLink to="/teacher/evaluations" class="dashboard-tile hover:bg-accent-light/30 group">
-
-          <div class="dashboard-tile__label">
-
-            <ClipboardList class="w-4 h-4 text-accent" />
-
-            <p class="dashboard-tile__caption">Évaluations</p>
-
-          </div>
-
-          <p class="dashboard-tile__value">{{ stats.total }}</p>
-
-          <p class="dashboard-tile__hint group-hover:text-accent">Voir la liste</p>
-
-        </RouterLink>
-
-        <RouterLink to="/teacher/submissions" class="dashboard-tile hover:bg-accent-light/30 group">
-
-          <div class="dashboard-tile__label">
-
-            <CheckCircle class="w-4 h-4 text-accent" />
-
-            <p class="dashboard-tile__caption">Soumissions</p>
-
-          </div>
-
-          <p class="dashboard-tile__value">{{ stats.submitted }}</p>
-
-          <p class="dashboard-tile__hint group-hover:text-accent">Voir les copies rendues</p>
-
-        </RouterLink>
-
-        <RouterLink to="/teacher/history?tab=cheaters" class="dashboard-tile hover:bg-danger-bg/40 group">
-
-          <div class="dashboard-tile__label">
-
-            <ShieldAlert class="w-4 h-4 text-danger" />
-
-            <p class="dashboard-tile__caption">Alertes triche</p>
-
-          </div>
-
-          <p class="dashboard-tile__value">{{ stats.cheaters }}</p>
-
-          <p class="dashboard-tile__hint group-hover:text-danger">Violations & échecs</p>
-
-        </RouterLink>
-
-        <RouterLink to="/teacher/attendance" class="dashboard-tile hover:bg-paper group">
-
-          <div class="dashboard-tile__label">
-
-            <Users class="w-4 h-4 text-ink-muted" />
-
-            <p class="dashboard-tile__caption">Absences</p>
-
-          </div>
-
-          <p class="dashboard-tile__value">{{ absenceRows.length }}</p>
-
-          <p class="dashboard-tile__hint group-hover:text-accent">{{ totalAbsences }} absence(s) · calendrier</p>
-
-        </RouterLink>
-
+        <DashboardTile
+          to="/teacher/evaluations"
+          caption="Évaluations"
+          :value="stats.total"
+          hint="Voir la liste"
+          :icon="ClipboardList"
+        />
+        <DashboardTile
+          to="/teacher/submissions"
+          caption="Soumissions"
+          :value="stats.submitted"
+          hint="Copies rendues"
+          :icon="CheckCircle"
+        />
+        <DashboardTile
+          to="/teacher/history?tab=cheaters"
+          caption="Alertes triche"
+          :value="stats.cheaters"
+          hint="Violations & échecs"
+          :icon="ShieldAlert"
+          tone="danger"
+        />
+        <DashboardTile
+          to="/teacher/attendance"
+          caption="Absences"
+          :value="absenceRows.length"
+          :hint="`${totalAbsences} absence(s) · calendrier`"
+          :icon="Users"
+          tone="muted"
+        />
       </div>
 
     </AppCard>

@@ -30,6 +30,8 @@ const props = withDefaults(
     /** Propose de créer l’entrée saisie si elle n’est pas dans la liste. */
     allowCreate?: boolean
     createLabel?: string
+    /** Liste ouverte seulement après saisie (autocomplétion). */
+    typeToSearch?: boolean
   }>(),
   {
     selectedValue: null,
@@ -37,6 +39,7 @@ const props = withDefaults(
     compact: false,
     allowCreate: false,
     createLabel: 'Créer',
+    typeToSearch: false,
   },
 )
 
@@ -68,12 +71,21 @@ const fuse = computed(
     }),
 )
 
+const resultCap = computed(() =>
+  props.limit <= 0 ? props.items.length : props.limit,
+)
+
 const filtered = computed(() => {
   const q = props.modelValue.trim()
-  const limit = props.limit
-  if (!q) return props.items.slice(0, limit)
-  return fuse.value.search(q).slice(0, limit).map((r) => r.item)
+  const cap = resultCap.value
+  if (props.typeToSearch && !q) return []
+  if (!q) return props.items.slice(0, cap)
+  return fuse.value.search(q).slice(0, cap).map((r) => r.item)
 })
+
+const showTypeHint = computed(
+  () => props.typeToSearch && open.value && !props.modelValue.trim(),
+)
 
 const exactMatch = computed(() => {
   const q = props.modelValue.trim().toLowerCase()
@@ -114,6 +126,11 @@ function selectItem(item: SuggestItem) {
 
 function toggleList() {
   if (props.disabled) return
+  if (props.typeToSearch && !props.modelValue.trim()) {
+    inputRef.value?.focus()
+    open.value = false
+    return
+  }
   open.value = !open.value
   if (open.value) inputRef.value?.focus()
 }
@@ -201,11 +218,18 @@ function onKeydown(e: KeyboardEvent) {
       </button>
     </div>
 
-    <ul
-      v-if="open && (filtered.length > 0 || canCreate)"
-      role="listbox"
-      class="absolute z-30 left-0 right-0 mt-1 max-h-60 overflow-y-auto border border-line bg-white shadow-lg"
-    >
+    <template v-if="open">
+      <p
+        v-if="showTypeHint"
+        class="absolute z-30 left-0 right-0 mt-1 border border-line bg-white px-3 py-2 text-xs text-ink-muted shadow-lg"
+      >
+        Tapez pour filtrer la liste des inscrits.
+      </p>
+      <ul
+        v-else-if="filtered.length > 0 || canCreate"
+        role="listbox"
+        class="absolute z-30 left-0 right-0 mt-1 max-h-60 overflow-y-auto border border-line bg-white shadow-lg"
+      >
       <li
         v-for="(item, index) in filtered"
         :key="item.value"
@@ -233,7 +257,8 @@ function onKeydown(e: KeyboardEvent) {
       >
         {{ createLabel }} « {{ modelValue.trim() }} »
       </li>
-    </ul>
+      </ul>
+    </template>
 
     <p v-if="error" class="text-xs text-danger">{{ error }}</p>
     <p v-else-if="hint" class="text-xs text-ink-faint">{{ hint }}</p>

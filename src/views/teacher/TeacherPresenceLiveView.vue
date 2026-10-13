@@ -118,20 +118,31 @@ watch(
   },
 )
 
+function relayDescriptionForUserId(userId: string): string | undefined {
+  const n = Number(userId)
+  const fromCatalog = Number.isFinite(n) ? studentStore.catalogByUserId.get(n) : undefined
+  if (!fromCatalog) return undefined
+  return [fromCatalog.matricule, fromCatalog.promotion?.name, fromCatalog.etablissement?.name]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+const relayCandidateCount = computed(() => {
+  const enrolled = session.value?.enrolledUserIds ?? []
+  const activeIds = new Set(activeRelays.value.map((g) => g.userId))
+  return enrolled.filter((id) => !activeIds.has(id)).length
+})
+
 const relaySuggestItems = computed((): SuggestItem[] => {
   const enrolled = session.value?.enrolledUserIds ?? []
   const activeIds = new Set(activeRelays.value.map((g) => g.userId))
   return enrolled
     .filter((id) => !activeIds.has(id))
-    .map((id) => {
-      const label = labelForUserId(id)
-      return { value: id, label }
-    })
-    .filter((item) => {
-      const q = relayQuery.value.trim().toLowerCase()
-      if (!q) return true
-      return item.label.toLowerCase().includes(q)
-    })
+    .map((id) => ({
+      value: id,
+      label: labelForUserId(id),
+      description: relayDescriptionForUserId(id),
+    }))
 })
 
 onMounted(() => {
@@ -252,7 +263,10 @@ function openFullscreenQr() {
             v-model="relayQuery"
             v-model:selected-value="selectedRelayUserId"
             label="Rechercher un étudiant"
-            placeholder="Nom…"
+            placeholder="Tapez le nom…"
+            type-to-search
+            :limit="0"
+            :hint="`${relayCandidateCount} inscrit(s) à la salle. Saisissez au moins une lettre pour voir les suggestions.`"
             :items="relaySuggestItems"
             @select="(item) => { selectedRelayUserId = item.value }"
           />
