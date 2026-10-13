@@ -4,7 +4,7 @@ import type { Evaluation, ExamSession, Question, Violation } from '@/types'
 import type { AppNotification } from '@/types/notification'
 import { DEFAULT_ANTI_CHEAT, DEFAULT_SETTINGS } from '@/types'
 import { hashPassword } from '@/utils/auth'
-import { PARTNER_INSTITUTION } from '@/data/universities'
+import { DEMO_DEFAULT_INSTITUTION_LABEL } from '@/config/demoDefaults'
 import { getTodayDateString } from '@/utils/access'
 
 const SEED_VERSION = 'demo-v4'
@@ -179,7 +179,7 @@ export async function seedDemoData(): Promise<void> {
     firstName: 'Prof.',
     lastName: 'Démo UCC',
     role: 'teacher',
-    institution: PARTNER_INSTITUTION,
+    institution: DEMO_DEFAULT_INSTITUTION_LABEL,
     createdAt: isoDaysAgo(90),
   }
 
@@ -192,7 +192,7 @@ export async function seedDemoData(): Promise<void> {
       lastName: 'Matondo Ethberg',
       role: 'student',
       studentId: 'UCC-L2-2024-014',
-      institution: PARTNER_INSTITUTION,
+      institution: DEMO_DEFAULT_INSTITUTION_LABEL,
       createdAt: isoDaysAgo(60),
     },
     {
@@ -203,7 +203,7 @@ export async function seedDemoData(): Promise<void> {
       lastName: 'oko Sondzo',
       role: 'student',
       studentId: 'UCC-L2-2024-027',
-      institution: PARTNER_INSTITUTION,
+      institution: DEMO_DEFAULT_INSTITUTION_LABEL,
       createdAt: isoDaysAgo(58),
     },
     {
@@ -214,7 +214,7 @@ export async function seedDemoData(): Promise<void> {
       lastName: 'Mayumbi',
       role: 'student',
       studentId: 'UCC-L2-2024-033',
-      institution: PARTNER_INSTITUTION,
+      institution: DEMO_DEFAULT_INSTITUTION_LABEL,
       createdAt: isoDaysAgo(55),
     },
   ]

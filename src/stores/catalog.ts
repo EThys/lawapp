@@ -10,7 +10,8 @@ import {
   listMatieres,
   listPromotions,
 } from '@/api/catalog'
-import type { Devise, Etablissement, Matiere, Promotion } from '@/api/types'
+import { listFaculties } from '@/api/faculties'
+import type { Devise, Etablissement, FacultyRecord, Matiere, Promotion } from '@/api/types'
 import { extractApiError } from '@/api/client'
 import { isApiEnabled } from '@/config/features'
 
@@ -19,6 +20,8 @@ export const useCatalogStore = defineStore('catalog', () => {
   const promotions = ref<Promotion[]>([])
   const etablissements = ref<Etablissement[]>([])
   const devises = ref<Devise[]>([])
+  const facultiesByEtablissementId = ref<Record<number, FacultyRecord[]>>({})
+  const allFaculties = ref<FacultyRecord[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -47,6 +50,29 @@ export const useCatalogStore = defineStore('catalog', () => {
       error.value = extractApiError(err)
     } finally {
       loading.value = false
+    }
+  }
+
+  function facultiesFor(etablissementId: number): FacultyRecord[] {
+    return facultiesByEtablissementId.value[etablissementId] ?? []
+  }
+
+  async function syncFaculties(etablissementId?: number): Promise<FacultyRecord[]> {
+    if (!isApiEnabled()) return []
+    try {
+      const list = await listFaculties(etablissementId)
+      if (etablissementId != null) {
+        facultiesByEtablissementId.value = {
+          ...facultiesByEtablissementId.value,
+          [etablissementId]: list,
+        }
+      } else {
+        allFaculties.value = list
+      }
+      return list
+    } catch (err) {
+      error.value = extractApiError(err)
+      return []
     }
   }
 
@@ -153,12 +179,16 @@ export const useCatalogStore = defineStore('catalog', () => {
     promotions,
     etablissements,
     devises,
+    facultiesByEtablissementId,
+    allFaculties,
     loading,
     error,
     activeMatieres,
     activePromotions,
     activeEtablissements,
+    facultiesFor,
     syncAll,
+    syncFaculties,
     syncMatieres,
     addMatiere,
     addPromotion,

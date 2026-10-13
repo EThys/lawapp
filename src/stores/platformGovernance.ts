@@ -2,6 +2,10 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { Etablissement } from '@/api/types'
 import type { EtablissementGovernanceFlags } from '@/types/platformRoles'
+import {
+  filterPublicEtablissements,
+  resolveEtablissementGovernance,
+} from '@/utils/referentielOptions'
 
 const FLAGS_KEY = 'lawapp_etablissement_governance'
 
@@ -52,17 +56,16 @@ export const usePlatformGovernanceStore = defineStore('platformGovernance', () =
     saveFlags(flagsById.value)
   }
 
-  /** Aligné sur GET public/etablissements (super admin filtre). */
+  /** Établissements listés publiquement (actifs ou grisés selon les options). */
   function filterPubliclyListed(list: Etablissement[]): Etablissement[] {
-    return list.filter((e) => {
-      if (e.active === false || e.isActive === false) return false
-      return getFlags(e.id).publiclyListed
-    })
+    return filterPublicEtablissements(list, getFlags)
   }
 
-  /** Listes affiliation prof / étudiant / éval université. */
+  /** Établissements sélectionnables (affiliation, publication université). */
   function filterPartnerEnabled(list: Etablissement[]): Etablissement[] {
-    return filterPubliclyListed(list).filter((e) => getFlags(e.id).partnerEnabled)
+    return filterPubliclyListed(list).filter(
+      (e) => resolveEtablissementGovernance(e, getFlags(e.id)).selectable,
+    )
   }
 
   return {

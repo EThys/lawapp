@@ -122,6 +122,7 @@ export interface FacultyRecord {
   name?: string
   etablissementId?: number
   active?: boolean
+  isActive?: boolean
 }
 
 export interface ResolveAccessCodeResult {

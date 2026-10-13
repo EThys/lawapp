@@ -10,7 +10,7 @@ import {
 import type { TeacherRecord, TeacherRequest } from '@/api/types'
 import { extractApiError } from '@/api/client'
 import { isApiEnabled, USER_KEY } from '@/config/features'
-import { PARTNER_INSTITUTION } from '@/data/universities'
+import { DEMO_DEFAULT_INSTITUTION_LABEL } from '@/config/demoDefaults'
 import type { User } from '@/types/auth'
 import { extractTeacherFromProfile, loadStoredMemberProfile } from '@/utils/memberProfile'
 
@@ -101,7 +101,7 @@ export const useTeacherStore = defineStore('teachers', () => {
     error.value = null
     try {
       const body: TeacherRequest = {
-        departement: payload?.departement?.trim() || PARTNER_INSTITUTION,
+        departement: payload?.departement?.trim() || DEMO_DEFAULT_INSTITUTION_LABEL,
         gender: payload?.gender?.trim() || 'N/A',
         justificatif: payload?.justificatif?.trim() || undefined,
         typeTeacherId: payload?.typeTeacherId,
