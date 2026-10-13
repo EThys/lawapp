@@ -8,6 +8,8 @@ import { getPresenceShareUrl } from '@/utils/localNetwork'
 import { TUNNEL_CODE_ROTATION_SECONDS, TUNNEL_DURATION_MINUTES } from '@/types/course'
 import { generateId, generateCode } from '@/utils/helpers'
 import { getTodayDateString, getGroupShareUrl } from '@/utils/access'
+import { isCourseTeacher } from '@/utils/courseTeacher'
+import type { User } from '@/types/auth'
 
 const COURSES_KEY = 'lawapp_courses'
 const ATTENDANCE_KEY = 'lawapp_attendance'
@@ -122,13 +124,27 @@ export const useCourseStore = defineStore('courses', () => {
 
   function startTunnel(
     courseId: string,
-    teacherId: string,
+    teacher: Pick<User, 'id' | 'apiUserId'>,
     wifiLabel: string,
-    networkFingerprint: NetworkFingerprint
-  ): PresenceTunnel | null {
+    networkFingerprint: NetworkFingerprint,
+  ): { ok: true; tunnel: PresenceTunnel } | { ok: false; error: string } {
     const course = getById(courseId)
-    if (!course || course.teacherId !== teacherId) return null
-    if (!wifiLabel.trim()) return null
+    if (!course) {
+      return {
+        ok: false,
+        error:
+          'Salle introuvable. Rechargez le tableau de bord ou rouvrez la page de la salle.',
+      }
+    }
+    if (!isCourseTeacher(course, teacher)) {
+      return {
+        ok: false,
+        error: 'Seul l’enseignant de cette salle peut ouvrir une session de présence.',
+      }
+    }
+    if (!wifiLabel.trim()) {
+      return { ok: false, error: 'Sélectionnez le réseau WiFi de la salle.' }
+    }
 
     deactivateExpiredTunnels()
     for (const t of tunnels.value) {
@@ -140,7 +156,7 @@ export const useCourseStore = defineStore('courses', () => {
     const tunnel: PresenceTunnel = {
       id: generateId(),
       courseId,
-      teacherId,
+      teacherId: teacher.id,
       shareCode,
       wifiLabel: wifiLabel.trim(),
       networkFingerprint: {
@@ -157,7 +173,7 @@ export const useCourseStore = defineStore('courses', () => {
     tunnels.value.unshift(tunnel)
     persistTunnels()
 
-    return tunnel
+    return { ok: true, tunnel }
   }
 
   function sharePresenceToClass(

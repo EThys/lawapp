@@ -13,6 +13,22 @@ import type { ClassroomKind, Course } from '@/types/course'
 import { extractApiError } from '@/api/client'
 import { isApiEnabled } from '@/config/features'
 import { getClassroomKind, setClassroomKind } from '@/utils/classroomKind'
+import { useCourseStore } from '@/stores/courses'
+
+/** Enregistre la salle API dans le store local (présence WiFi, inscriptions, etc.). */
+export function persistClassroomAsLocalCourse(
+  classroom: Classroom,
+  members: ClassroomUser[] = [],
+  teacher: { id: string; displayName: string },
+): Course & { apiId: number; isFromApi: true } {
+  const mapped = mapClassroomToCourse(classroom, members, teacher.displayName)
+  const courseStore = useCourseStore()
+  // Toujours l’id de session (auth.currentUser.id) pour présence / tunnel local.
+  return courseStore.upsertApiCourse({
+    ...mapped,
+    teacherId: teacher.id.trim(),
+  }) as Course & { apiId: number; isFromApi: true }
+}
 
 export function mapClassroomToCourse(
   classroom: Classroom,
@@ -164,7 +180,10 @@ export const useClassroomStore = defineStore('classrooms', () => {
     }
   }
 
-  function getMappedCourse(id: number): (Course & { apiId: number; isFromApi: true }) | null {
+  function getMappedCourse(
+    id: number,
+    teacher?: { id: string; displayName: string },
+  ): (Course & { apiId: number; isFromApi: true }) | null {
     const classroom =
       current.value?.id === id
         ? current.value
@@ -172,6 +191,9 @@ export const useClassroomStore = defineStore('classrooms', () => {
           classrooms.value.find((c) => c.id === id)
     if (!classroom) return null
     const members = current.value?.id === id ? currentUsers.value : []
+    if (teacher?.id) {
+      return persistClassroomAsLocalCourse(classroom, members, teacher)
+    }
     return mapClassroomToCourse(classroom, members)
   }
 

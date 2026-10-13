@@ -2,6 +2,9 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCourseStore } from '@/stores/courses'
+import { useClassroomStore, persistClassroomAsLocalCourse } from '@/stores/classrooms'
+import { isApiEnabled } from '@/config/features'
+import { isCourseTeacher } from '@/utils/courseTeacher'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import { captureNetworkFingerprint, getPresenceShareUrl } from '@/utils/localNetwork'
@@ -16,6 +19,7 @@ const props = defineProps<{
 
 const auth = useAuthStore()
 const courseStore = useCourseStore()
+const classroomStore = useClassroomStore()
 
 const selectedWifi = ref('')
 const wifiNetworks = ref<WifiNetwork[]>([])
@@ -94,6 +98,27 @@ function selectWifi(ssid: string) {
   tunnelError.value = ''
 }
 
+function ensureLocalCourse() {
+  const user = auth.currentUser
+  if (!user || !isApiEnabled()) return courseStore.getById(props.courseId)
+
+  const apiId = Number(props.courseId)
+  if (!Number.isFinite(apiId) || apiId <= 0) return courseStore.getById(props.courseId)
+
+  const existing = courseStore.getById(props.courseId)
+  if (existing && isCourseTeacher(existing, user)) return existing
+
+  const classroom =
+    classroomStore.myClassrooms.find((c) => c.id === apiId) ??
+    classroomStore.classrooms.find((c) => c.id === apiId)
+  if (!classroom) return existing
+
+  return persistClassroomAsLocalCourse(classroom, [], {
+    id: user.id,
+    displayName: `${user.firstName} ${user.lastName}`.trim(),
+  })
+}
+
 async function startTunnel() {
   if (!auth.currentUser || startingTunnel.value) return
   tunnelError.value = ''
@@ -107,18 +132,34 @@ async function startTunnel() {
   startingTunnel.value = true
   try {
     const fingerprint = await captureNetworkFingerprint()
-    if (!fingerprint.publicIp && !fingerprint.localIpPrefix) {
-      tunnelError.value = 'Connectez-vous au WiFi de la salle avant d\'ouvrir la session.'
+    const onSelectedWifi = wifiNetworks.value.some(
+      (n) => n.ssid === selectedWifi.value && n.isConnected,
+    )
+    if (!fingerprint.publicIp && !fingerprint.localIpPrefix && !onSelectedWifi) {
+      tunnelError.value =
+        'Réseau non identifié. Restez connecté au WiFi de la salle (WIFI-IT), autorisez l’accès réseau du navigateur si demandé, puis réessayez.'
       return
     }
-    const tunnel = courseStore.startTunnel(
+
+    const course = ensureLocalCourse()
+    if (!course) {
+      tunnelError.value =
+        'Salle introuvable dans l’application. Rechargez le tableau de bord ou rouvrez la page de la salle.'
+      return
+    }
+    if (!isCourseTeacher(course, auth.currentUser)) {
+      tunnelError.value = 'Seul l’enseignant de cette salle peut ouvrir une session de présence.'
+      return
+    }
+
+    const result = courseStore.startTunnel(
       props.courseId,
-      auth.currentUser.id,
+      auth.currentUser,
       selectedWifi.value,
-      fingerprint
+      fingerprint,
     )
-    if (!tunnel) {
-      tunnelError.value = 'Impossible d\'ouvrir la session.'
+    if (!result.ok) {
+      tunnelError.value = result.error
       return
     }
     tick.value++
