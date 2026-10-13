@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="135" height="40" viewBox="0 0 135 40" role="img" aria-label="Google Play">
+  <rect width="135" height="40" rx="5" fill="#0a0a0a" stroke="#fff" stroke-width="1"/>
+  <text x="44" y="14" fill="#fff" font-family="system-ui,sans-serif" font-size="8" opacity="0.85">DISPONIBLE SUR</text>
+  <text x="44" y="28" fill="#fff" font-family="system-ui,sans-serif" font-size="13" font-weight="600">Google Play</text>
+  <path fill="#fff" d="M11 8.5 22 20 11 31.5zM23.5 18.8 29.5 15l-6-3.5zM23.5 21.2 29.5 25l-6 3.5zM11 8.5l11.5 10.3L11 31.5V8.5z" opacity="0.9"/>
+</svg>

@@ -1,0 +1,182 @@
+.dashboard-page {
+  --dashboard-card-radius: 0.85rem;
+}
+
+.dashboard-section--intro {
+  padding: 1.35rem 1.25rem;
+  border-radius: var(--dashboard-card-radius);
+  border: 1px solid var(--color-line);
+  background: linear-gradient(
+    145deg,
+    white 0%,
+    color-mix(in srgb, var(--color-accent-light) 55%, white) 100%
+  );
+  box-shadow: 0 12px 36px rgb(15 23 42 / 0.05);
+}
+
+@media (min-width: 640px) {
+  .dashboard-section--intro {
+    padding: 1.75rem 1.75rem;
+  }
+}
+
+.dashboard-section__head {
+  margin-bottom: 1rem;
+}
+
+.dashboard-section__head:last-child {
+  margin-bottom: 0;
+}
+
+.dashboard-section__eyebrow {
+  margin-bottom: 0.5rem;
+}
+
+.dashboard-section__title {
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 2.5vw, 1.75rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-brand-dark);
+}
+
+.dashboard-section__subtitle {
+  margin-top: 0.35rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--color-ink-muted);
+}
+
+.dashboard-page .panel-elevated h3 {
+  color: var(--color-brand-dark);
+}
+
+.dashboard-page .panel-elevated > div:first-child p.text-xs {
+  color: var(--color-ink-muted);
+}
+
+.app-stat-card {
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.05);
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.app-stat-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--color-accent) 22%, var(--color-line));
+  box-shadow: 0 14px 36px rgb(25 118 210 / 0.08);
+}
+
+.dashboard-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.dashboard-tile__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-bottom: 0.15rem;
+  border-radius: 0.65rem;
+  background: var(--color-accent-light);
+  color: var(--color-brand);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-line));
+  transition: transform 0.25s ease;
+}
+
+.dashboard-tile:hover .dashboard-tile__icon {
+  transform: scale(1.05);
+}
+
+.dashboard-tile--warning .dashboard-tile__icon {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  border-color: color-mix(in srgb, var(--color-warning) 25%, var(--color-line));
+}
+
+.dashboard-tile--danger .dashboard-tile__icon {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 22%, var(--color-line));
+}
+
+.dashboard-tile--muted .dashboard-tile__icon {
+  background: var(--color-paper-warm);
+  color: var(--color-ink-muted);
+}
+
+.dashboard-tile__caption {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+
+.dashboard-tile__value {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  line-height: 1.1;
+  font-weight: 600;
+  color: var(--color-brand-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-tile__hint {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--color-ink-muted);
+  margin-top: 0.15rem;
+}
+
+.dashboard-tile:hover .dashboard-tile__hint {
+  color: var(--color-brand);
+}
+
+.dashboard-row {
+  padding: 1rem 1.15rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-line);
+  background: white;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.dashboard-row:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 18%, var(--color-line));
+  box-shadow: 0 8px 22px rgb(15 23 42 / 0.05);
+}
+
+.dashboard-row--soft {
+  background: color-mix(in srgb, var(--color-paper-warm) 45%, white);
+}
+
+.dashboard-row--accent {
+  background: color-mix(in srgb, var(--color-accent-light) 35%, white);
+  border-color: color-mix(in srgb, var(--color-accent) 20%, var(--color-line));
+}
+
+.dashboard-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-tile:hover,
+  .app-stat-card:hover {
+    transform: none;
+  }
+
+  .dashboard-tile:hover .dashboard-tile__icon {
+    transform: none;
+  }
+}

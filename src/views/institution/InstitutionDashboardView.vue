@@ -114,11 +114,11 @@ onMounted(() => {
 
 <template>
   <DashboardPage>
-    <DashboardSection spacing="loose">
+    <DashboardSection spacing="loose" variant="intro">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p class="label-caps mb-2">Administration établissement</p>
-          <h1 class="font-display text-3xl text-ink tracking-tight flex items-center gap-2">
+          <h1 class="font-display text-3xl text-brand-dark tracking-tight flex items-center gap-2">
             <Building2 class="w-8 h-8 text-accent" />
             {{ etabLabel }}
           </h1>

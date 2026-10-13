@@ -99,8 +99,8 @@
   }
 
   .panel-elevated {
-    @apply bg-white border border-line;
-    box-shadow: 0 1px 0 rgb(15 23 42 / 0.04), 0 4px 16px rgb(15 23 42 / 0.06);
+    @apply bg-white border border-line rounded-[0.85rem];
+    box-shadow: 0 8px 28px rgb(15 23 42 / 0.06);
   }
 
   .label-caps {
@@ -155,11 +155,11 @@
   }
 
   .dashboard-stats {
-    @apply grid grid-cols-1 sm:grid-cols-3 gap-px bg-line border border-line;
+    @apply grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4;
   }
 
   .dashboard-tiles {
-    @apply grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3;
+    @apply grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3;
   }
 
   .dashboard-tiles--4 {
@@ -167,23 +167,18 @@
   }
 
   .dashboard-tile {
-    @apply block p-4 sm:p-5 border border-line bg-paper-warm transition-colors min-h-[5.5rem];
+    @apply block p-4 sm:p-5 border border-line bg-white rounded-[0.85rem] transition-all min-h-[5.5rem];
+    box-shadow: 0 8px 24px rgb(15 23 42 / 0.04);
+  }
+
+  .dashboard-tile:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--color-accent) 22%, var(--color-line));
+    box-shadow: 0 14px 36px rgb(25 118 210 / 0.08);
   }
 
   .dashboard-tile__label {
     @apply flex items-center gap-2 mb-2;
-  }
-
-  .dashboard-tile__caption {
-    @apply text-xs font-semibold uppercase tracking-wide text-ink-faint;
-  }
-
-  .dashboard-tile__value {
-    @apply text-2xl font-semibold text-ink tabular-nums;
-  }
-
-  .dashboard-tile__hint {
-    @apply text-xs text-ink-muted mt-1;
   }
 
   .card-inset-list {
