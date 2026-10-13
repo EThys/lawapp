@@ -14,6 +14,7 @@ import AppStatCard from '@/components/ui/AppStatCard.vue'
 import DashboardPage from '@/components/layout/DashboardPage.vue'
 import WorkspaceQualityPrompt from '@/components/account/WorkspaceQualityPrompt.vue'
 import DashboardSection from '@/components/layout/DashboardSection.vue'
+import DashboardTile from '@/components/layout/DashboardTile.vue'
 import { EVALUATION_TYPE_LABELS } from '@/types'
 import { formatEvaluationPeriod, formatDate, formatMinutes, downloadDataUrl } from '@/utils/helpers'
 import { Download } from '@lucide/vue'
@@ -422,32 +423,29 @@ onUnmounted(() => {
 
 <template>
   <DashboardPage>
-    <DashboardSection spacing="loose">
+    <DashboardSection spacing="loose" variant="intro">
       <WorkspaceQualityPrompt
         v-if="!auth.hasTeacherQuality"
         v-reveal="96"
-        class="mb-6"
+        class="mb-4"
         target="teacher"
       />
 
-      <AppCard
+      <p
         v-if="parcoursPending"
         v-reveal="97"
-        class="mb-6 p-4 border-warning/30 bg-warning-bg/25"
-        :hover="false"
+        class="mb-4 text-xs text-ink-muted leading-relaxed"
       >
-        <p class="text-sm text-ink">
-          {{ STUDENT_PARCOURS_PENDING_BANNER }}
-        </p>
-        <RouterLink to="/student/profile" class="inline-block mt-2 text-sm font-medium text-accent hover:underline">
-          Voir mon parcours →
+        {{ STUDENT_PARCOURS_PENDING_BANNER }}
+        <RouterLink to="/student/profile" class="font-medium text-accent hover:underline">
+          Compléter le parcours
         </RouterLink>
-      </AppCard>
+      </p>
 
       <div v-reveal="100" class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-6">
         <div class="min-w-0 flex-1">
           <p class="label-caps mb-2">Espace étudiant</p>
-          <h1 class="font-display text-2xl sm:text-3xl text-ink tracking-tight break-words">
+          <h1 class="font-display text-2xl sm:text-3xl text-brand-dark tracking-tight break-words">
             Bonjour, {{ auth.currentUser?.firstName }}
           </h1>
           <p class="mt-1 text-sm text-ink-muted">
@@ -521,6 +519,23 @@ onUnmounted(() => {
       </div>
     </DashboardSection>
 
+    <DashboardSection spacing="loose">
+      <div v-reveal class="dashboard-stats">
+        <AppShimmerStats v-if="catalogShimmer" :count="3" :columns="3" />
+        <template v-else>
+          <AppStatCard :value="stats.total" label="Sessions" :icon="BookOpen" :delay="0" />
+          <AppStatCard :value="stats.completed" label="Terminées" :icon="ClipboardList" :delay="1" />
+          <AppStatCard
+            :value="stats.average ?? 0"
+            :label="stats.average !== null ? 'Moyenne' : 'Moyenne (n/a)'"
+            suffix="%"
+            :icon="Target"
+            :delay="2"
+          />
+        </template>
+      </div>
+    </DashboardSection>
+
     <DashboardSection>
       <AppCard v-if="cohortEvaluations.length" v-reveal="103" hover class="mb-6">
         <div class="border-b border-line mb-4 sm:mb-5 pb-4">
@@ -529,11 +544,11 @@ onUnmounted(() => {
             Épreuves réservées à votre salle (lien reçu du formateur) — hors catalogue public.
           </p>
         </div>
-        <div class="space-y-3">
+        <div class="dashboard-stack">
           <div
             v-for="evaluation in cohortEvaluations"
             :key="`cohort-${evaluation.id}`"
-            class="p-4 border border-line bg-paper-warm/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+            class="dashboard-row dashboard-row--soft flex flex-col sm:flex-row sm:items-center justify-between gap-4"
           >
             <div class="min-w-0">
               <p class="text-sm font-medium text-ink">{{ evaluation.title }}</p>
@@ -558,11 +573,11 @@ onUnmounted(() => {
           <h3 class="font-display text-ink text-lg">Pour vous</h3>
           <p class="text-xs text-ink-faint mt-1">Vos examens de promo / faculté (parcours validé).</p>
         </div>
-        <div class="space-y-3">
+        <div class="dashboard-stack">
           <div
             v-for="evaluation in personalizedEvaluations"
             :key="`personal-${evaluation.id}`"
-            class="p-4 border border-accent/25 bg-accent-light/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+            class="dashboard-row dashboard-row--accent flex flex-col sm:flex-row sm:items-center justify-between gap-4"
           >
             <div class="min-w-0">
               <p class="text-sm font-medium text-ink">{{ evaluation.title }}</p>
@@ -612,11 +627,11 @@ onUnmounted(() => {
             Aucune évaluation disponible pour le moment.
           </template>
         </div>
-        <div v-else class="space-y-3">
+        <div v-else class="dashboard-stack">
           <div
             v-for="evaluation in catalogEvaluations"
             :key="`catalog-${evaluation.id}`"
-            class="p-4 border border-line bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+            class="dashboard-row flex flex-col sm:flex-row sm:items-center justify-between gap-4"
           >
             <div class="min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
@@ -659,46 +674,33 @@ onUnmounted(() => {
       >
         <AppShimmerStats v-if="catalogShimmer" :count="4" :columns="4" class="mb-5" />
         <div v-else class="dashboard-tiles dashboard-tiles--4 mb-5">
-          <RouterLink
+          <DashboardTile
             to="/student/history?tab=passed"
-            class="dashboard-tile hover:bg-accent-light/30"
-          >
-            <div class="dashboard-tile__label">
-              <ClipboardList class="w-4 h-4 text-accent" />
-              <p class="dashboard-tile__caption">Passées</p>
-            </div>
-            <p class="dashboard-tile__value">{{ stats.completed }}</p>
-          </RouterLink>
-          <RouterLink
+            caption="Passées"
+            :value="stats.completed"
+            :icon="ClipboardList"
+          />
+          <DashboardTile
             to="/student/history?tab=missed"
-            class="dashboard-tile hover:bg-warning-bg/50"
-          >
-            <div class="dashboard-tile__label">
-              <UserX class="w-4 h-4 text-warning" />
-              <p class="dashboard-tile__caption">Manquées</p>
-            </div>
-            <p class="dashboard-tile__value">{{ stats.missed }}</p>
-          </RouterLink>
-          <RouterLink
+            caption="Manquées"
+            :value="stats.missed"
+            :icon="UserX"
+            tone="warning"
+          />
+          <DashboardTile
             to="/student/history?tab=alerts"
-            class="dashboard-tile hover:bg-danger-bg/40"
-          >
-            <div class="dashboard-tile__label">
-              <ShieldAlert class="w-4 h-4 text-danger" />
-              <p class="dashboard-tile__caption">Alertes</p>
-            </div>
-            <p class="dashboard-tile__value">{{ stats.alerts }}</p>
-          </RouterLink>
-          <RouterLink
+            caption="Alertes"
+            :value="stats.alerts"
+            :icon="ShieldAlert"
+            tone="danger"
+          />
+          <DashboardTile
             to="/student/attendance"
-            class="dashboard-tile hover:bg-paper"
-          >
-            <div class="dashboard-tile__label">
-              <CalendarCheck class="w-4 h-4 text-ink-muted" />
-              <p class="dashboard-tile__caption">Présences</p>
-            </div>
-            <p class="dashboard-tile__value">{{ stats.presences }}</p>
-          </RouterLink>
+            caption="Présences"
+            :value="stats.presences"
+            :icon="CalendarCheck"
+            tone="muted"
+          />
         </div>
         <RouterLink to="/student/history">
           <AppButton variant="outline" size="sm">
@@ -839,17 +841,6 @@ onUnmounted(() => {
         </div>
       </div>
       </AppCard>
-    </DashboardSection>
-
-    <DashboardSection spacing="loose">
-      <div v-reveal class="dashboard-stats">
-      <AppShimmerStats v-if="catalogShimmer" :count="3" :columns="3" />
-      <template v-else>
-      <AppStatCard :value="stats.total" label="Sessions" :icon="BookOpen" :delay="0" />
-      <AppStatCard :value="stats.completed" label="Terminées" :icon="ClipboardList" :delay="1" />
-      <AppStatCard :value="stats.average ?? 0" :label="stats.average !== null ? 'Moyenne' : 'Moyenne (n/a)'" suffix="%" :icon="Target" :delay="2" />
-      </template>
-      </div>
     </DashboardSection>
 
     <DashboardSection>
