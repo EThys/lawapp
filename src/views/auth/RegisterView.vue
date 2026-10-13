@@ -172,7 +172,7 @@ async function handleRegister() {
       <p class="label-caps mb-3">Inscription</p>
       <h1 class="font-display text-3xl text-ink tracking-tight">Créer votre compte</h1>
       <p class="mt-2 text-sm text-ink-muted leading-relaxed">
-        Étape {{ step + 1 }} sur {{ steps.length }} — {{ stepHint }}
+        Étape {{ step + 1 }} sur {{ steps.length }} · {{ stepHint }}
       </p>
     </div>
 
@@ -202,7 +202,7 @@ async function handleRegister() {
       </div>
 
       <div v-else-if="step === 1" key="1" class="space-y-3">
-        <p class="text-sm text-ink-muted">Cochez un ou les deux — vous compléterez le profil après l’e-mail.</p>
+        <p class="text-sm text-ink-muted">Cochez un ou les deux. Vous compléterez le profil après l’e-mail.</p>
         <button
           type="button"
           class="flex w-full cursor-pointer items-start gap-4 p-5 border text-left transition-colors"

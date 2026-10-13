@@ -3,12 +3,12 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useTeacherStore } from '@/stores/teachers'
-import { listTeacherTypes, listEtablissements } from '@/api/catalog'
-import type { TeacherType, Etablissement } from '@/api/types'
+import { listTeacherTypes } from '@/api/catalog'
+import type { TeacherType } from '@/api/types'
 import { isApiEnabled } from '@/config/features'
 import { useServerShimmer } from '@/composables/useServerShimmer'
-import AppShimmerForm from '@/components/loading/AppShimmerForm.vue'
-import { PARTNER_INSTITUTION, etablissementSelectOptions, findPartnerEtablissement } from '@/data/universities'
+import { useReferentielCatalog } from '@/composables/useReferentielCatalog'
+import { isEtablissementKeySelectable } from '@/utils/referentielOptions'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
@@ -27,17 +27,24 @@ const router = useRouter()
 const auth = useAuthStore()
 const teacherStore = useTeacherStore()
 
-const departement = ref(PARTNER_INSTITUTION)
+const departement = ref('')
 const gender = ref('')
 const justificatif = ref('')
 const typeTeacherId = ref('')
 const etablisementId = ref('')
 const teacherTypes = ref<TeacherType[]>([])
-const etablissements = ref<Etablissement[]>([])
+const {
+  catalog,
+  etablissementOptions,
+  ensureBaseCatalog,
+  defaultSelectableEtablissementId,
+  getFlags,
+} = useReferentielCatalog()
 const error = ref('')
 const success = ref('')
 const saving = ref(false)
 const profileReady = ref(!isApiEnabled())
+const requestInstitutionValidation = ref(true)
 
 const showPasswordModal = ref(false)
 const showDeleteModal = ref(false)
@@ -78,11 +85,14 @@ const teacherTypeOptions = computed(() =>
     })),
 )
 
-const etablissementOptions = computed(() => etablissementSelectOptions(etablissements.value))
+const selectedEtablissementLabel = computed(() => {
+  if (!etablisementId.value) return ''
+  return etablissementOptions.value.find((o) => o.value === etablisementId.value)?.label ?? ''
+})
 
 const typeTeacherLabel = computed(() => {
   const id = typeTeacherId.value
-  if (!id) return '—'
+  if (!id) return 'Non renseigné'
   return teacherTypeOptions.value.find((o) => o.value === id)?.label ?? `Type #${id}`
 })
 
@@ -108,13 +118,11 @@ onMounted(async () => {
     return
   }
   try {
-    const [types, etabs] = await Promise.all([listTeacherTypes(), listEtablissements()])
+    const [types] = await Promise.all([listTeacherTypes(), ensureBaseCatalog()])
     teacherTypes.value = types
-    etablissements.value = etabs
 
-    const partner = findPartnerEtablissement(etabs)
-    if (partner && !etablisementId.value) {
-      etablisementId.value = String(partner.id)
+    if (!etablisementId.value) {
+      etablisementId.value = defaultSelectableEtablissementId()
     }
 
     await teacherStore.loadMyProfile({
@@ -141,6 +149,14 @@ async function handleSubmit() {
   if (!gender.value.trim()) missing.push('Genre')
   if (!typeTeacherId.value) missing.push("Type d'enseignant")
   if (!etablisementId.value) missing.push('Établissement')
+  if (
+    etablisementId.value &&
+    isApiEnabled() &&
+    !isEtablissementKeySelectable(etablisementId.value, catalog.etablissements, getFlags)
+  ) {
+    error.value = 'Choisissez un établissement disponible dans la liste.'
+    return
+  }
   if (missing.length) {
     error.value = missingFieldsMessage(missing)
     return
@@ -162,6 +178,20 @@ async function handleSubmit() {
   }
 
   auth.grantQuality('teacher', result.profile)
+
+  if (requestInstitutionValidation.value && etablisementId.value && selectedEtablissementLabel.value) {
+    const aff = await auth.requestTeacherInstitutionAffiliation(
+      etablisementId.value,
+      selectedEtablissementLabel.value,
+    )
+    if (!aff.ok) {
+      success.value =
+        'Profil enseignant créé. La demande d’affiliation n’a pas pu être envoyée : vous pourrez la lancer plus bas sur cette page.'
+      appToast.warning(aff.error)
+      return
+    }
+  }
+
   success.value = 'Profil enseignant créé. Votre qualité enseignant est active.'
   setTimeout(() => router.push('/teacher'), 1000)
 }
@@ -242,12 +272,7 @@ async function handleDeleteAccount() {
         <div class="mb-8">
           <p class="label-caps mb-2">Enseignant</p>
           <h1 class="font-display text-3xl text-ink tracking-tight">Profil enseignant</h1>
-          <p class="mt-2 text-sm text-ink-muted">
-            Informations du compte et du profil enseignant (fournies à la connexion).
-          </p>
         </div>
-
-        <InstitutionAffiliationCard class="mb-6" />
 
         <AppCard v-if="user" class="p-6 mb-6 space-y-3" :hover="false">
           <div class="flex flex-wrap items-center gap-2">
@@ -321,12 +346,28 @@ async function handleDeleteAccount() {
             />
             <AppSelect
               v-model="etablisementId"
-              label="Établissement"
+              label="Université / établissement d'exercice"
               required
               placeholder="Choisir un établissement"
               :options="etablissementOptions"
             />
-            <AppInput v-model="departement" label="Département / faculté" required />
+            <AppInput
+              v-model="departement"
+              label="Département / faculté"
+              required
+              hint="Ex. Droit, Sciences économiques…"
+            />
+            <label class="flex items-start gap-3 cursor-pointer text-sm text-ink-muted leading-relaxed">
+              <input
+                v-model="requestInstitutionValidation"
+                type="checkbox"
+                class="mt-1 rounded border-line text-accent focus:ring-accent"
+              />
+              <span>
+                Envoyer une <strong class="font-medium text-ink">demande d’affiliation</strong>
+                à cet établissement dès la création du profil (optionnel).
+              </span>
+            </label>
             <AppSelect
               v-model="gender"
               label="Genre"
@@ -352,6 +393,13 @@ async function handleDeleteAccount() {
             </AppButton>
           </form>
         </AppCard>
+
+        <InstitutionAffiliationCard
+          v-if="hasProfile"
+          class="mb-6"
+          :profile-etablissement-id="etablisementId"
+          :profile-etablissement-label="selectedEtablissementLabel"
+        />
 
         <div class="mt-8 flex flex-wrap gap-3 border-t border-line pt-6">
           <AppButton type="button" variant="outline" @click="openPasswordModal">

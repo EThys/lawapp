@@ -5,10 +5,10 @@ import { useAuthStore } from '@/stores/auth'
 import { useStudentStore } from '@/stores/students'
 import { useClassroomStore, mapClassroomToCourse } from '@/stores/classrooms'
 import { useCourseStore } from '@/stores/courses'
-import { listPromotions, listEtablissements } from '@/api/catalog'
-import type { Promotion, Etablissement, Classroom } from '@/api/types'
+import type { Promotion, Classroom } from '@/api/types'
 import { isApiEnabled } from '@/config/features'
-import { etablissementSelectOptions, findPartnerEtablissement } from '@/data/universities'
+import { useReferentielCatalog } from '@/composables/useReferentielCatalog'
+import { isEtablissementKeySelectable } from '@/utils/referentielOptions'
 import { useServerShimmer } from '@/composables/useServerShimmer'
 import AppShimmerForm from '@/components/loading/AppShimmerForm.vue'
 import AppCard from '@/components/ui/AppCard.vue'
@@ -28,8 +28,14 @@ const studentStore = useStudentStore()
 const classroomStore = useClassroomStore()
 const courseStore = useCourseStore()
 
+const {
+  catalog,
+  etablissementOptions,
+  ensureBaseCatalog,
+  defaultSelectableEtablissementId,
+  getFlags,
+} = useReferentielCatalog()
 const promotions = ref<Promotion[]>([])
-const etablissements = ref<Etablissement[]>([])
 const classrooms = ref<Classroom[]>([])
 const promotionId = ref('')
 const classroomId = ref('')
@@ -78,23 +84,21 @@ const classroomOptions = computed(() =>
     })),
 )
 
-const etablissementOptions = computed(() => etablissementSelectOptions(etablissements.value))
-
 const promotionLabel = computed(() => {
   const id = promotionId.value
-  if (!id) return '—'
+  if (!id) return 'Non renseigné'
   return promotionOptions.value.find((o) => o.value === id)?.label ?? `Promotion #${id}`
 })
 
 const classroomLabel = computed(() => {
   const id = classroomId.value
-  if (!id) return '—'
+  if (!id) return 'Non renseigné'
   return classroomOptions.value.find((o) => o.value === id)?.label ?? `Salle #${id}`
 })
 
 const etablissementLabel = computed(() => {
   const id = etablissementId.value
-  if (!id) return '—'
+  if (!id) return 'Non renseigné'
   return etablissementOptions.value.find((o) => o.value === id)?.label ?? `Établissement #${id}`
 })
 
@@ -135,18 +139,12 @@ onMounted(async () => {
     return
   }
   try {
-    const [promos, etabs, rooms] = await Promise.all([
-      listPromotions(),
-      listEtablissements(),
-      classroomStore.syncAll(),
-    ])
-    promotions.value = promos
-    etablissements.value = etabs
+    const [, rooms] = await Promise.all([ensureBaseCatalog(), classroomStore.syncAll()])
+    promotions.value = catalog.promotions
     classrooms.value = rooms
 
-    const partner = findPartnerEtablissement(etabs)
-    if (partner && !etablissementId.value) {
-      etablissementId.value = String(partner.id)
+    if (!etablissementId.value) {
+      etablissementId.value = defaultSelectableEtablissementId()
     }
 
     await studentStore.loadMyProfile({
@@ -183,6 +181,14 @@ async function handleSubmit() {
   const missing: string[] = []
   if (!promotionId.value) missing.push('Promotion')
   if (!classroomId.value) missing.push('Salle')
+  if (
+    etablissementId.value &&
+    isApiEnabled() &&
+    !isEtablissementKeySelectable(etablissementId.value, catalog.etablissements, getFlags)
+  ) {
+    error.value = 'Choisissez un établissement disponible dans la liste.'
+    return
+  }
   if (missing.length) {
     error.value = missingFieldsMessage(missing)
     return

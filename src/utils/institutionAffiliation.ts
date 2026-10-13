@@ -1,17 +1,21 @@
 import type { InstitutionAffiliation } from '@/types/auth'
 import type { Evaluation, EvaluationPublicationScope } from '@/types'
-import { INSTITUTIONS_CONGO } from '@/data/universities'
+import type { Etablissement } from '@/api/types'
+import { etablissementLabelFromList } from '@/utils/referentielOptions'
 
-export function institutionLinkSelectOptions() {
-  return INSTITUTIONS_CONGO.map((i) => ({
-    value: i.value,
-    label: i.label,
-    group: i.group,
-  }))
+/** Sans API : pas de liste statique (référentiels via GET public/*). */
+export function institutionLinkSelectOptions(): {
+  value: string
+  label: string
+  group?: string
+  disabled?: boolean
+}[] {
+  return []
 }
 
-export function institutionLabelForKey(key: string): string {
-  return INSTITUTIONS_CONGO.find((i) => i.value === key)?.label ?? key
+export function institutionLabelForKey(key: string, etablissements?: Etablissement[]): string {
+  if (etablissements?.length) return etablissementLabelFromList(key, etablissements)
+  return key
 }
 
 export function isTeacherInstitutionVerified(

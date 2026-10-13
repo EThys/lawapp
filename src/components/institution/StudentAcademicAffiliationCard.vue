@@ -1,62 +1,98 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { isApiEnabled } from '@/config/features'
-import { listEtablissements } from '@/api/catalog'
-import { etablissementSelectOptions } from '@/data/universities'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import { useAuthStore } from '@/stores/auth'
-import { institutionLinkSelectOptions, affiliationStatusLabel } from '@/utils/institutionAffiliation'
-import { FACULTY_OPTIONS, PROMOTION_OPTIONS } from '@/data/academic'
+import { affiliationStatusLabel } from '@/utils/institutionAffiliation'
+import { useReferentielCatalog } from '@/composables/useReferentielCatalog'
+import {
+  isEtablissementKeySelectable,
+  parseNumericReferentielId,
+} from '@/utils/referentielOptions'
 import { GraduationCap } from '@lucide/vue'
 import { appToast } from '@/utils/toast'
 
 const auth = useAuthStore()
+const {
+  catalog,
+  etablissementOptions,
+  promotionOptions,
+  facultyOptionsFor,
+  ensureBaseCatalog,
+  ensureFaculties,
+  defaultSelectableEtablissementId,
+  getFlags,
+} = useReferentielCatalog()
 
 const institutionKey = ref('')
-const faculty = ref('')
-const promotion = ref('')
+const facultyId = ref('')
+const promotionId = ref('')
 const classroomLabel = ref('')
 const saving = ref(false)
+const catalogReady = ref(!isApiEnabled())
 
-const apiInstitutionOptions = ref<{ value: string; label: string; disabled?: boolean }[]>([])
-const institutionOptions = computed(() =>
-  isApiEnabled() && apiInstitutionOptions.value.length
-    ? apiInstitutionOptions.value
-    : institutionLinkSelectOptions(),
-)
-
-onMounted(async () => {
-  if (!isApiEnabled()) return
-  try {
-    const etabs = await listEtablissements()
-    apiInstitutionOptions.value = etablissementSelectOptions(etabs)
-  } catch {
-    apiInstitutionOptions.value = []
-  }
+const facultyOptions = computed(() => {
+  const etabId = parseNumericReferentielId(institutionKey.value)
+  return facultyOptionsFor(etabId)
 })
-const facultyOptions = computed(() => FACULTY_OPTIONS.map((f) => ({ value: f, label: f })))
-const promotionOptions = computed(() => PROMOTION_OPTIONS.map((p) => ({ value: p, label: p })))
 
 const academic = computed(() => auth.currentUser?.studentAcademicAffiliation)
 
-async function submitRequest() {
-  if (!institutionKey.value || !faculty.value || !promotion.value) {
-    appToast.warning('Choisissez université, faculté et niveau (ex. UCC · Droit · L2).')
+watch(institutionKey, async (key) => {
+  facultyId.value = ''
+  const etabId = parseNumericReferentielId(key)
+  if (etabId != null) await ensureFaculties(etabId)
+})
+
+onMounted(async () => {
+  if (!isApiEnabled()) {
+    catalogReady.value = true
     return
   }
-  const label =
-    institutionOptions.value.find((o) => o.value === institutionKey.value)?.label ??
-    institutionKey.value
+  await ensureBaseCatalog()
+  if (!institutionKey.value) {
+    institutionKey.value = defaultSelectableEtablissementId()
+  }
+  const etabId = parseNumericReferentielId(institutionKey.value)
+  if (etabId != null) await ensureFaculties(etabId)
+  catalogReady.value = true
+})
+
+function labelFor(options: { value: string; label: string }[], value: string): string {
+  return options.find((o) => o.value === value)?.label ?? value
+}
+
+async function submitRequest() {
+  if (!institutionKey.value || !facultyId.value || !promotionId.value) {
+    appToast.warning('Choisissez université, faculté et niveau.')
+    return
+  }
+  if (
+    isApiEnabled() &&
+    !isEtablissementKeySelectable(institutionKey.value, catalog.etablissements, getFlags)
+  ) {
+    appToast.warning('Cet établissement n’est pas disponible pour l’inscription.')
+    return
+  }
+
+  const institutionLabel = labelFor(etablissementOptions.value, institutionKey.value)
+  const faculty = labelFor(facultyOptions.value, facultyId.value)
+  const promotion = labelFor(promotionOptions.value, promotionId.value)
+  const facultyIdNum = parseNumericReferentielId(facultyId.value)
+  const promotionIdNum = parseNumericReferentielId(promotionId.value)
+
   saving.value = true
   const result = await auth.requestStudentAcademicAffiliation({
     institutionKey: institutionKey.value,
-    institutionLabel: label,
-    faculty: faculty.value,
-    promotion: promotion.value,
+    institutionLabel,
+    faculty,
+    promotion,
+    facultyId: facultyIdNum ?? undefined,
+    promotionId: promotionIdNum ?? undefined,
     classroomLabel: classroomLabel.value || undefined,
   })
   saving.value = false
@@ -65,9 +101,9 @@ async function submitRequest() {
     return
   }
   appToast.success('Enregistré. Vous pouvez continuer avec le code de vos profs.')
-  institutionKey.value = ''
-  faculty.value = ''
-  promotion.value = ''
+  institutionKey.value = defaultSelectableEtablissementId()
+  facultyId.value = ''
+  promotionId.value = ''
   classroomLabel.value = ''
 }
 </script>
@@ -78,7 +114,7 @@ async function submitRequest() {
       <GraduationCap class="w-5 h-5 text-accent shrink-0" />
       <div>
         <h2 class="font-semibold text-ink text-base">Mon parcours (optionnel)</h2>
-        <p class="text-sm text-ink-muted">UCC · Droit · L2 — pour voir vos examens sans code.</p>
+        <p class="text-sm text-ink-muted">Université, faculté et niveau : pour voir vos examens sans code.</p>
       </div>
     </div>
 
@@ -93,18 +129,39 @@ async function submitRequest() {
     </div>
 
     <form v-else class="space-y-3" @submit.prevent="submitRequest">
+      <p v-if="isApiEnabled() && catalogReady && !etablissementOptions.length" class="text-sm text-ink-muted">
+        Aucun établissement disponible. Contactez l’administrateur de la plateforme.
+      </p>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <AppSelect
           v-model="institutionKey"
           label="Université"
-          :options="institutionOptions"
-          placeholder="UCC…"
+          :options="etablissementOptions"
+          placeholder="Choisir…"
+          :disabled="!catalogReady"
         />
-        <AppSelect v-model="faculty" label="Faculté" :options="facultyOptions" placeholder="Droit" />
-        <AppSelect v-model="promotion" label="Niveau" :options="promotionOptions" placeholder="L2" />
+        <AppSelect
+          v-model="facultyId"
+          label="Faculté"
+          :options="facultyOptions"
+          placeholder="Choisir…"
+          :disabled="!institutionKey || !catalogReady"
+        />
+        <AppSelect
+          v-model="promotionId"
+          label="Niveau"
+          :options="promotionOptions"
+          placeholder="Choisir…"
+          :disabled="!catalogReady"
+        />
         <AppInput v-model="classroomLabel" label="Classe (facultatif)" placeholder="Groupe A" />
       </div>
-      <AppButton type="submit" class="w-full sm:w-auto min-h-11" :loading="saving">
+      <AppButton
+        type="submit"
+        class="w-full sm:w-auto min-h-11"
+        :loading="saving"
+        :disabled="!catalogReady"
+      >
         Enregistrer mon parcours
       </AppButton>
     </form>

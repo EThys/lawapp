@@ -23,18 +23,14 @@ import { useCourseStore } from '@/stores/courses'
 import { useClassroomStore, mapClassroomToCourse } from '@/stores/classrooms'
 import { useCategoryStore } from '@/stores/categories'
 import { useCatalogStore } from '@/stores/catalog'
-import { usePlatformGovernanceStore } from '@/stores/platformGovernance'
 import { appToast } from '@/utils/toast'
 import type { CorrectionMode } from '@/types'
 import { ArrowLeft, Plus, Trash2, GripVertical, ChevronLeft, ChevronRight, CalendarClock, Users, UserCheck, FileUp } from '@lucide/vue'
 import { dismissKeyboard } from '@/utils/form'
-import {
-  institutionLinkSelectOptions,
-  institutionLabelForKey,
-  resolveEvaluationPublication,
-} from '@/utils/institutionAffiliation'
+import { institutionLabelForKey, resolveEvaluationPublication } from '@/utils/institutionAffiliation'
 import type { EvaluationAudienceMode, EvaluationPublicationScope } from '@/types'
-import { FACULTY_OPTIONS, PROMOTION_OPTIONS } from '@/data/academic'
+import { useReferentielCatalog } from '@/composables/useReferentielCatalog'
+import { etablissementSelectOptions, parseNumericReferentielId } from '@/utils/referentielOptions'
 import { computeAccessCodeExpiresAt } from '@/utils/evaluationAudience'
 
 const route = useRoute()
@@ -45,7 +41,7 @@ const courseStore = useCourseStore()
 const classroomStore = useClassroomStore()
 const categoryStore = useCategoryStore()
 const catalogStore = useCatalogStore()
-const governance = usePlatformGovernanceStore()
+const { ensureFaculties, facultyOptionsFor, getFlags } = useReferentielCatalog()
 const subjectId = ref<string | null>(null)
 
 const FALLBACK_SUBJECTS = [
@@ -101,26 +97,18 @@ const evaluationAnnexName = ref('')
 const evaluationAnnexError = ref('')
 const publicationScope = ref<EvaluationPublicationScope>('open')
 const linkedInstitutionKey = ref('')
-const institutionOptions = computed(() => institutionLinkSelectOptions())
 const universitySelectOptions = computed(() => {
-  if (isApiEnabled() && catalogStore.activeEtablissements.length) {
-    return governance.filterPartnerEnabled(catalogStore.activeEtablissements).map((e) => ({
-      value: String(e.id),
-      label: e.name?.trim() || `Établissement #${e.id}`,
-    }))
+  if (isApiEnabled() && catalogStore.etablissements.length) {
+    return etablissementSelectOptions(catalogStore.etablissements, getFlags)
   }
-  return institutionLinkSelectOptions()
-    .filter((o) => !('disabled' in o && o.disabled))
-    .map((o) => ({ value: o.value, label: o.label }))
+  return []
 })
-const promotionCatalogLabels = computed((): string[] => {
-  if (catalogStore.activePromotions.length) {
-    return catalogStore.activePromotions
-      .map((p) => p.name?.trim())
-      .filter((n): n is string => !!n)
-  }
-  return [...PROMOTION_OPTIONS]
-})
+const institutionOptions = universitySelectOptions
+const promotionCatalogLabels = computed((): string[] =>
+  catalogStore.activePromotions
+    .map((p) => p.name?.trim())
+    .filter((n): n is string => !!n),
+)
 const audienceMode = ref<EvaluationAudienceMode>('open')
 const cohortRoomMode = ref<'new' | 'existing'>('new')
 const cohortNewName = ref('')
@@ -135,8 +123,19 @@ const selectedPromotions = ref<string[]>([])
 const targetStudentIds = ref<string[]>([])
 const studentSearchQuery = ref('')
 const studentSearchResults = ref<{ id: string; label: string }[]>([])
-const facultyOptions = computed(() => FACULTY_OPTIONS.map((f) => ({ value: f, label: f })))
-const promotionChoices = PROMOTION_OPTIONS
+const facultyEtablissementId = computed(() => {
+  const key =
+    publicationScope.value === 'institution'
+      ? linkedInstitutionKey.value
+      : audienceInstitutionKey.value
+  return parseNumericReferentielId(key)
+})
+const facultyOptions = computed(() => facultyOptionsFor(facultyEtablissementId.value))
+const promotionChoices = promotionCatalogLabels
+
+watch(facultyEtablissementId, (id) => {
+  if (id != null && isApiEnabled()) void ensureFaculties(id)
+})
 
 const publicationScopeOptions = [
   { value: 'open', label: 'Libre', hint: 'Catalogue public' },
@@ -182,7 +181,11 @@ function removeTargetStudent(id: string) {
 
 function resolveInstitutionLabel(key: string): string {
   const hit = universitySelectOptions.value.find((o) => o.value === key)
-  return hit?.label ?? institutionLabelForKey(key) ?? key
+  return (
+    hit?.label ??
+    institutionLabelForKey(key, catalogStore.etablissements) ??
+    key
+  )
 }
 
 function buildAudiencePatch(): Partial<import('@/types').Evaluation> {
@@ -400,6 +403,7 @@ onMounted(async () => {
         categoryStore.syncCategories(),
         catalogStore.syncMatieres(),
         catalogStore.syncAll(),
+        catalogStore.syncFaculties(),
       ])
     } finally {
       classroomsLoading.value = false
@@ -459,7 +463,7 @@ function buildPublicationPatch(asDraft: boolean) {
     return null
   }
   const key = publicationScope.value === 'institution' ? linkedInstitutionKey.value : null
-  const label = key ? institutionLabelForKey(key) : null
+  const label = key ? institutionLabelForKey(key, catalogStore.etablissements) : null
   return resolveEvaluationPublication({
     asDraft,
     publicationScope: publicationScope.value,
@@ -1400,7 +1404,7 @@ const evaluationTypes = Object.entries(EVALUATION_TYPE_LABELS) as [EvaluationTyp
                 publicationScope === 'open'
                   ? 'Libre'
                   : linkedInstitutionKey
-                    ? institutionLabelForKey(linkedInstitutionKey)
+                    ? institutionLabelForKey(linkedInstitutionKey, catalogStore.etablissements)
                     : 'Établissement à choisir'
               }}
             </dd>
