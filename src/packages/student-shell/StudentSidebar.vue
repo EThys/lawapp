@@ -66,7 +66,13 @@ function logout() {
     :aria-modal="mobileOpen ? true : undefined"
   >
     <div class="shell-sidebar__head">
-      <RouterLink to="/student" class="shell-sidebar__brand" @click="emit('closeMobile')">
+      <RouterLink
+        to="/"
+        class="shell-sidebar__brand"
+        title="Retour au site public"
+        aria-label="LawApp, retour au site public"
+        @click="emit('closeMobile')"
+      >
         <span class="shell-sidebar__brand-mark">
           <GraduationCap class="w-5 h-5" />
         </span>

@@ -5,6 +5,7 @@ import {
   CalendarCheck,
   CalendarDays,
   UserPlus,
+  Globe,
 } from '@lucide/vue'
 
 export const STUDENT_SIDEBAR_STORAGE_KEY = 'lawapp-student-sidebar'
@@ -31,6 +32,7 @@ export const STUDENT_PAGE_TITLES: StudentNavMeta[] = [
   { path: '/student/attendance', title: 'Présences' },
   { path: '/student/profile', title: 'Profil étudiant' },
   { path: '/join/group', title: 'Rejoindre une salle' },
+  { path: '/', title: 'Site public', exact: true },
   { path: '/account', title: 'Compte' },
 ]
 
@@ -75,6 +77,13 @@ export function buildStudentMenuItems(): StudentMenuItem[] {
       label: 'Rejoindre une salle',
       to: '/join/group',
       icon: { component: UserPlus },
+    },
+    {
+      id: 'public-site',
+      label: 'Site public',
+      to: '/',
+      icon: { component: Globe },
+      activeMatch: 'exact',
     },
   ]
 }

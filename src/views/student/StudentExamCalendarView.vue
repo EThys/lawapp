@@ -29,7 +29,6 @@ import {
   ExternalLink,
   RefreshCw,
   ArrowRight,
-  Info,
 } from '@lucide/vue'
 import type { Evaluation } from '@/types'
 
@@ -167,12 +166,6 @@ function formatEventWindow(ev: StudentExamCalendarEvent): string {
             </AppButton>
           </div>
         </div>
-        <p class="text-xs text-ink-faint flex items-start gap-2">
-          <Info class="w-4 h-4 shrink-0 mt-0.5" />
-          Abonnement automatique (flux URL) : prévu avec l’API
-          <code class="text-[10px] bg-paper-warm px-1">GET …/students/me/evaluations/calendar.ics</code>
-          — réimportez le .ics après chaque sync en attendant.
-        </p>
       </AppCard>
 
       <div class="grid lg:grid-cols-5 gap-6">
