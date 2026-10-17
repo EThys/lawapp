@@ -24,6 +24,52 @@ import {
 
 const auth = useAuthStore()
 
+/** Bandeau bas de page : inscription / accès selon invité ou compte existant. */
+const homeFooterTeacherCta = computed(() => {
+  if (!auth.isAuthenticated) {
+    return { label: 'Inscription enseignant', to: '/register' }
+  }
+  if (auth.hasTeacherQuality) {
+    return { label: 'Espace enseignant', to: '/teacher' }
+  }
+  return { label: 'Activer le profil enseignant', to: '/teacher/profile' }
+})
+
+const homeFooterAccessCta = computed(() => {
+  if (!auth.isAuthenticated) {
+    return { label: 'Connexion', to: '/login' }
+  }
+  if (!auth.hasTeacherQuality && !auth.hasStudentQuality) {
+    return { label: 'Compléter mon compte', to: '/account' }
+  }
+  if (auth.hasStudentQuality && !auth.hasTeacherQuality) {
+    return { label: 'Mon espace étudiant', to: '/student' }
+  }
+  if (auth.hasTeacherQuality && !auth.hasStudentQuality) {
+    return { label: 'Activer le profil étudiant', to: '/student/profile' }
+  }
+  if (auth.activeWorkspace === 'teacher') {
+    return { label: 'Mon espace étudiant', to: '/student' }
+  }
+  return { label: 'Mon espace enseignant', to: '/teacher' }
+})
+
+const homeFooterLead = computed(() => {
+  if (!auth.isAuthenticated) {
+    return 'Inscription gratuite pour concevoir et diffuser vos évaluations. Le module Droit Ludique est ouvert à tous, sans compte.'
+  }
+  if (auth.hasTeacherQuality && auth.hasStudentQuality) {
+    return 'Vos espaces enseignant et étudiant sont actifs. Basculez entre eux depuis votre compte ou ouvrez directement un tableau de bord.'
+  }
+  if (auth.hasStudentQuality && !auth.hasTeacherQuality) {
+    return 'Votre espace étudiant est prêt. Activez aussi un profil enseignant pour créer et diffuser vos évaluations.'
+  }
+  if (auth.hasTeacherQuality && !auth.hasStudentQuality) {
+    return 'Votre espace enseignant est prêt. Vous pouvez activer un profil étudiant pour passer des épreuves avec le même compte.'
+  }
+  return 'Finalisez votre profil enseignant ou étudiant pour accéder aux tableaux de bord. Droit Ludique reste ouvert sans compte.'
+})
+
 const modules = computed(() => [
   {
     tag: 'Module évaluation',
@@ -484,7 +530,7 @@ const faqItems = [
       </div>
     </section>
 
-    <section class="relative bg-brand-dark text-white py-16 lg:py-20 overflow-hidden">
+    <section class="home-cta relative bg-brand-dark text-white py-16 lg:py-20 overflow-hidden">
       <AppDecorativeBg />
       <div v-reveal class="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
         <div>
@@ -492,7 +538,7 @@ const faqItems = [
             Prêt à créer vos évaluations ?
           </h2>
           <p class="text-sm text-white/50 mt-3 max-w-md leading-relaxed">
-            Inscription gratuite pour concevoir et diffuser vos évaluations. Le module Droit Ludique est ouvert à tous, sans compte.
+            {{ homeFooterLead }}
           </p>
         </div>
         <div class="flex flex-col sm:flex-row gap-3 flex-shrink-0">
@@ -502,14 +548,14 @@ const faqItems = [
               <Sparkles class="w-4 h-4 transition-transform duration-300 group-hover:rotate-12" />
             </AppButton>
           </RouterLink>
-          <RouterLink v-reveal="{ delay: 160 }" to="/register">
-            <AppButton class="!bg-white !text-brand hover:!bg-accent-light w-full sm:w-auto hover-lift">
-              Inscription enseignant
+          <RouterLink v-reveal="{ delay: 160 }" :to="homeFooterTeacherCta.to">
+            <AppButton variant="outline" class="home-cta__btn-light w-full sm:w-auto hover-lift">
+              {{ homeFooterTeacherCta.label }}
             </AppButton>
           </RouterLink>
-          <RouterLink v-reveal="{ delay: 240 }" to="/login">
-            <AppButton variant="outline" class="!border-white/30 !text-white hover:!bg-white/10 w-full sm:w-auto hover-lift">
-              Connexion
+          <RouterLink v-reveal="{ delay: 240 }" :to="homeFooterAccessCta.to">
+            <AppButton variant="outline" class="home-cta__btn-light w-full sm:w-auto hover-lift">
+              {{ homeFooterAccessCta.label }}
             </AppButton>
           </RouterLink>
         </div>
@@ -1284,6 +1330,19 @@ const faqItems = [
   font-size: 0.875rem;
   line-height: 1.75;
   color: var(--color-ink-muted);
+}
+
+/* CTA « Prêt à créer vos évaluations ? » — fond blanc, libellé bleu */
+.home-cta__btn-light {
+  background-color: #fff !important;
+  color: var(--color-accent) !important;
+  border-color: rgb(255 255 255 / 0.45) !important;
+}
+
+.home-cta__btn-light:hover {
+  background-color: var(--color-accent-light) !important;
+  color: var(--color-accent-hover) !important;
+  border-color: #fff !important;
 }
 
 </style>
