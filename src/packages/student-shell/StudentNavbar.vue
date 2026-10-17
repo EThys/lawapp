@@ -105,10 +105,10 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
         <Menu v-else class="w-5 h-5" />
       </button>
 
-      <div class="shell-navbar__titles min-w-0">
+      <RouterLink to="/" class="shell-navbar__titles shell-navbar__titles--link min-w-0" title="Retour au site public">
         <p class="shell-navbar__eyebrow">LawApp · Étudiant</p>
         <h1 class="shell-navbar__title truncate">{{ pageTitle }}</h1>
-      </div>
+      </RouterLink>
     </div>
 
     <div class="shell-navbar__right">
@@ -184,9 +184,14 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
               <UserCog class="w-4 h-4" />
               Compte et espaces
             </RouterLink>
-            <div v-if="auth.showWorkspaceSwitcher" class="shell-navbar__dropdown-switcher">
-              <RoleWorkspaceSwitcher variant="icons" />
-            </div>
+            <RouterLink
+              to="/"
+              class="shell-navbar__dropdown-item"
+              role="menuitem"
+              @click="menuOpen = false"
+            >
+              Site public
+            </RouterLink>
             <button
               type="button"
               class="shell-navbar__dropdown-item shell-navbar__dropdown-item--danger"

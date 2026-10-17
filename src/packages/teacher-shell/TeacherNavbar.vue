@@ -75,7 +75,7 @@ async function refreshServer() {
   refreshing.value = true
   try {
     await evalStore.syncFromApi()
-    appToast.success('Données synchronisées avec le serveur.')
+    appToast.success('Données synchronisées.')
   } catch (e) {
     appToast.apiError(e, 'Échec de la synchronisation.')
   } finally {
@@ -133,8 +133,8 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
           type="button"
           class="shell-navbar__action"
           :disabled="refreshing || evalStore.apiLoading"
-          title="Actualiser le serveur"
-          aria-label="Synchroniser avec le serveur"
+          title="Actualiser les données"
+          aria-label="Synchroniser les données"
           @click="refreshServer"
         >
           <RefreshCw
@@ -205,9 +205,6 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
               <UserCog class="w-4 h-4" />
               Compte et espaces
             </RouterLink>
-            <div v-if="!isAdmin && auth.showWorkspaceSwitcher" class="shell-navbar__dropdown-switcher">
-              <RoleWorkspaceSwitcher variant="icons" />
-            </div>
             <button
               type="button"
               class="shell-navbar__dropdown-item shell-navbar__dropdown-item--danger"

@@ -72,8 +72,8 @@ async function go(role: UserRole) {
   >
     <div class="workspace-segment__track">
       <div
-        v-if="auth.canSwitchWorkspace"
         class="workspace-segment__thumb"
+        :class="{ 'workspace-segment__thumb--solo': !auth.canSwitchWorkspace }"
         :style="thumbStyle"
         aria-hidden="true"
       />
@@ -82,7 +82,8 @@ async function go(role: UserRole) {
         role="tab"
         class="workspace-segment__tab"
         :class="{
-          'workspace-segment__tab--active': active === 'student' && hasQuality('student'),
+          'workspace-segment__tab--active': active === 'student',
+          'workspace-segment__tab--ready': hasQuality('student') && active !== 'student',
           'workspace-segment__tab--needs-setup': !hasQuality('student'),
         }"
         :aria-selected="active === 'student'"
@@ -99,7 +100,8 @@ async function go(role: UserRole) {
         role="tab"
         class="workspace-segment__tab"
         :class="{
-          'workspace-segment__tab--active': active === 'teacher' && hasQuality('teacher'),
+          'workspace-segment__tab--active': active === 'teacher',
+          'workspace-segment__tab--ready': hasQuality('teacher') && active !== 'teacher',
           'workspace-segment__tab--needs-setup': !hasQuality('teacher'),
         }"
         :aria-selected="active === 'teacher'"
@@ -117,8 +119,9 @@ async function go(role: UserRole) {
 
 <style scoped>
 .workspace-segment {
-  --ws-track: color-mix(in srgb, var(--color-line) 35%, var(--color-paper-warm));
-  --ws-thumb-shadow: 0 1px 3px rgb(0 0 0 / 0.12), 0 1px 1px rgb(0 0 0 / 0.06);
+  --ws-track: color-mix(in srgb, var(--color-accent-light) 50%, white);
+  --ws-track-border: color-mix(in srgb, var(--color-accent) 28%, var(--color-line));
+  --ws-thumb-shadow: 0 2px 10px rgb(25 118 210 / 0.38);
 }
 
 .workspace-segment--navbar {
@@ -135,8 +138,8 @@ async function go(role: UserRole) {
 }
 
 .workspace-segment--icons .workspace-segment__track {
-  min-height: 2.125rem;
-  width: 5.5rem;
+  min-height: 2.25rem;
+  width: 5.75rem;
 }
 
 .workspace-segment--icons .workspace-segment__tab {
@@ -156,7 +159,9 @@ async function go(role: UserRole) {
   padding: 3px;
   border-radius: 9999px;
   background: var(--ws-track);
+  border: 1px solid var(--ws-track-border);
   min-height: 2.25rem;
+  box-shadow: inset 0 1px 2px rgb(25 118 210 / 0.06);
 }
 
 .workspace-segment--panel .workspace-segment__track {
@@ -170,10 +175,20 @@ async function go(role: UserRole) {
   width: calc(50% - 3px);
   height: calc(100% - 6px);
   border-radius: 9999px;
-  background: #fff;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-accent) 92%, white) 0%,
+    var(--color-accent) 100%
+  );
   box-shadow: var(--ws-thumb-shadow);
-  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  transition:
+    transform 0.28s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.2s ease;
   pointer-events: none;
+}
+
+.workspace-segment__thumb--solo {
+  opacity: 1;
 }
 
 .workspace-segment__tab {
@@ -186,25 +201,52 @@ async function go(role: UserRole) {
   padding: 0.35rem 0.5rem;
   border: 0;
   background: transparent;
-  color: var(--color-ink-muted);
+  color: color-mix(in srgb, var(--color-ink-muted) 88%, var(--color-accent));
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   cursor: pointer;
-  transition: color 0.2s ease, opacity 0.2s ease;
+  transition:
+    color 0.2s ease,
+    opacity 0.2s ease,
+    transform 0.15s ease;
   border-radius: 9999px;
 }
 
-.workspace-segment__tab--active {
-  color: var(--color-ink);
+.workspace-segment__tab:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
-.workspace-segment__tab--needs-setup {
+.workspace-segment__tab--active {
+  color: #fff;
+}
+
+.workspace-segment__tab--active .workspace-segment__icon {
+  color: #fff;
+}
+
+.workspace-segment__tab--ready {
+  color: var(--color-accent);
+  opacity: 0.85;
+}
+
+.workspace-segment__tab--ready:hover {
+  opacity: 1;
+  color: var(--color-accent-hover);
+}
+
+.workspace-segment__tab--needs-setup:not(.workspace-segment__tab--active) {
+  opacity: 0.45;
+  color: var(--color-ink-faint);
+}
+
+.workspace-segment--partial .workspace-segment__tab--needs-setup:not(.workspace-segment__tab--active) {
   opacity: 0.55;
 }
 
-.workspace-segment--partial .workspace-segment__tab--needs-setup {
-  opacity: 0.85;
+.workspace-segment--partial .workspace-segment__tab--needs-setup:not(.workspace-segment__tab--active):hover {
+  opacity: 0.75;
   color: var(--color-accent);
 }
 
