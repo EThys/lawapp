@@ -114,7 +114,11 @@ function asTeacherSlice(raw: unknown): BackendTeacherSlice | null {
       teacherId: id,
       typeTeacherId:
         raw.typeTeacherId == null
-          ? null
+          ? isRecord(raw.typeTeacher) && typeof raw.typeTeacher.id === 'number'
+            ? raw.typeTeacher.id
+            : typeof raw.typeTeacher === 'number'
+              ? raw.typeTeacher
+              : null
           : typeof raw.typeTeacherId === 'number'
             ? raw.typeTeacherId
             : Number(raw.typeTeacherId),

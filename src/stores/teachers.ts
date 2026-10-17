@@ -12,7 +12,12 @@ import { extractApiError } from '@/api/client'
 import { isApiEnabled, USER_KEY } from '@/config/features'
 import { DEMO_DEFAULT_INSTITUTION_LABEL } from '@/config/demoDefaults'
 import type { User } from '@/types/auth'
-import { extractTeacherFromProfile, loadStoredMemberProfile } from '@/utils/memberProfile'
+import {
+  extractTeacherFromProfile,
+  loadStoredMemberProfile,
+  mergeStoredTeacherProfile,
+} from '@/utils/memberProfile'
+import { mergeTeacherRecords } from '@/utils/teacherProfileMerge'
 
 function hintFromStorage(): TeacherMatchHint {
   try {
@@ -42,28 +47,19 @@ export const useTeacherStore = defineStore('teachers', () => {
     try {
       const mergedHint = { ...hintFromStorage(), ...hint }
       const fromStored = extractTeacherFromProfile(loadStoredMemberProfile())
-      if (fromStored?.teacherId) {
-        myProfile.value = fromStored
-      }
-
       const fromApi = await getMyTeacherProfile(mergedHint)
-      if (fromApi?.teacherId) {
-        myProfile.value = fromApi
+
+      const merged = mergeTeacherRecords(fromApi, fromStored, myProfile.value)
+      if (merged?.teacherId) {
+        myProfile.value = merged
+        mergeStoredTeacherProfile(merged)
         return myProfile.value
       }
 
-      if (myProfile.value?.teacherId) return myProfile.value
-
-      // Fallback : qualité déjà acquise côté session (après onboarding),
-      // même si la liste protégée ne renvoie pas encore le match.
       if (mergedHint.teacherId) {
-        myProfile.value = {
+        myProfile.value = mergeTeacherRecords(fromStored, {
           teacherId: mergedHint.teacherId,
-          departement: fromStored?.departement,
-          gender: fromStored?.gender,
-          justificatif: fromStored?.justificatif,
-          typeTeacherId: fromStored?.typeTeacherId,
-        }
+        })
         return myProfile.value
       }
 
@@ -109,22 +105,31 @@ export const useTeacherStore = defineStore('teachers', () => {
       }
       const created = await registerTeacherProfile(body)
       const teacherId = created.teacher?.teacherId ?? 0
+      const submitted: TeacherRecord | null = teacherId
+        ? {
+            teacherId,
+            typeTeacherId: body.typeTeacherId,
+            departement: body.departement,
+            justificatif: body.justificatif,
+            gender: body.gender,
+          }
+        : null
 
-      myProfile.value =
-        (await getMyTeacherProfile({
-          ...hintFromStorage(),
-          teacherId: teacherId || hintFromStorage().teacherId,
-        })) ??
-        created.teacher ??
-        (teacherId
-          ? {
-              teacherId,
-              typeTeacherId: body.typeTeacherId,
-              departement: body.departement,
-              justificatif: body.justificatif,
-              gender: body.gender,
-            }
-          : null)
+      const fromApi = await getMyTeacherProfile({
+        ...hintFromStorage(),
+        teacherId: teacherId || hintFromStorage().teacherId,
+      })
+
+      myProfile.value = mergeTeacherRecords(
+        fromApi,
+        created.teacher,
+        submitted,
+        extractTeacherFromProfile(loadStoredMemberProfile()),
+      )
+
+      if (myProfile.value?.teacherId) {
+        mergeStoredTeacherProfile(myProfile.value)
+      }
 
       return { ok: true, profile: myProfile.value ?? undefined }
     } catch (e) {

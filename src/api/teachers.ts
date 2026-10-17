@@ -7,8 +7,67 @@ import type {
 } from '@/api/types'
 import { unwrapList, unwrapObject } from '@/utils/apiHelpers'
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v)
+}
+
+/** Normalise un enseignant (liste protégée ou réponse création). */
+export function normalizeTeacherRecord(raw: unknown): TeacherRecord | null {
+  if (!isRecord(raw)) return null
+
+  const teacherIdRaw = raw.teacherId ?? raw.id
+  const teacherId =
+    typeof teacherIdRaw === 'number'
+      ? teacherIdRaw
+      : Number.parseInt(String(teacherIdRaw ?? ''), 10)
+  if (!Number.isFinite(teacherId) || teacherId <= 0) return null
+
+  let typeTeacherId: number | undefined
+  if (typeof raw.typeTeacherId === 'number') typeTeacherId = raw.typeTeacherId
+  else if (typeof raw.typeTeacher === 'number') typeTeacherId = raw.typeTeacher
+  else if (isRecord(raw.typeTeacher) && typeof raw.typeTeacher.id === 'number') {
+    typeTeacherId = raw.typeTeacher.id
+  }
+
+  const departement =
+    typeof raw.departement === 'string'
+      ? raw.departement
+      : typeof raw.department === 'string'
+        ? raw.department
+        : undefined
+
+  const gender =
+    typeof raw.gender === 'string'
+      ? raw.gender
+      : typeof raw.sexe === 'string'
+        ? raw.sexe
+        : typeof raw.genre === 'string'
+          ? raw.genre
+          : undefined
+
+  const justificatif =
+    raw.justificatif != null
+      ? String(raw.justificatif)
+      : raw.justification != null
+        ? String(raw.justification)
+        : undefined
+
+  return {
+    teacherId,
+    typeTeacherId,
+    departement: departement?.trim() || undefined,
+    gender: gender?.trim() || undefined,
+    justificatif: justificatif?.trim() || undefined,
+    userId: typeof raw.userId === 'number' ? raw.userId : undefined,
+    email: typeof raw.email === 'string' ? raw.email : undefined,
+    username: typeof raw.username === 'string' ? raw.username : undefined,
+  }
+}
+
 function unwrapTeachers(data: unknown): TeacherRecord[] {
-  return unwrapList<TeacherRecord>(data).filter((t) => t && typeof t.teacherId === 'number')
+  return unwrapList<unknown>(data)
+    .map((item) => normalizeTeacherRecord(item))
+    .filter((t): t is TeacherRecord => !!t)
 }
 
 /** GET /v1/protected/teachers — liste des enseignants (Swagger teacher-controller). */
@@ -45,28 +104,17 @@ export async function getMyTeacherProfile(hint: TeacherMatchHint = {}): Promise<
 }
 
 function parseTeacherFromCreateResponse(data: unknown): TeacherRecord | null {
-  const direct = unwrapObject<TeacherRecord>(data)
-  if (direct && typeof direct.teacherId === 'number') return direct
+  const direct = normalizeTeacherRecord(data)
+  if (direct) return direct
 
   if (data && typeof data === 'object') {
     const obj = data as Record<string, unknown>
     for (const key of ['teacher', 'data', 'session', 'result']) {
       const nested = obj[key]
-      const fromNested = unwrapObject<TeacherRecord>(nested)
-      if (fromNested && typeof fromNested.teacherId === 'number') return fromNested
+      const fromNested = normalizeTeacherRecord(nested)
+      if (fromNested) return fromNested
     }
-    const rawId = obj.teacherId ?? obj.id
-    const teacherId =
-      typeof rawId === 'number' ? rawId : Number.parseInt(String(rawId ?? ''), 10)
-    if (teacherId > 0) {
-      return {
-        teacherId,
-        typeTeacherId: typeof obj.typeTeacherId === 'number' ? obj.typeTeacherId : undefined,
-        departement: typeof obj.departement === 'string' ? obj.departement : undefined,
-        justificatif: typeof obj.justificatif === 'string' ? obj.justificatif : undefined,
-        gender: typeof obj.gender === 'string' ? obj.gender : undefined,
-      }
-    }
+    return normalizeTeacherRecord(obj)
   }
   return null
 }
