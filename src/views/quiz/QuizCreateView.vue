@@ -274,8 +274,8 @@ async function handleSubmit() {
       v-if="!isApiEnabled()"
       class="p-4 border border-line bg-white text-sm text-ink-muted"
     >
-      Mode API désactivé. Activez <code class="text-accent">VITE_USE_API=true</code> pour publier sur
-      le serveur.
+      Mode API désactivé. Activez <code class="text-accent">VITE_USE_API=true</code> pour publier en
+      ligne.
     </div>
 
     <template v-else>

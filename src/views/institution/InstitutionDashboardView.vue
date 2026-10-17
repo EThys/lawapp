@@ -180,7 +180,7 @@ onMounted(() => {
           File d’attente
         </h2>
         <p v-if="!isApiEnabled()" class="text-sm text-ink-muted">
-          Activez le mode API pour synchroniser les demandes avec le serveur.
+          Activez le mode API pour synchroniser les demandes en ligne.
         </p>
         <p v-else-if="etabId <= 0" class="text-sm text-ink-muted">
           Aucun établissement associé à votre compte (`institutionMemberships` / GET protected/me).

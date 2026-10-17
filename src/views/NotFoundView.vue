@@ -11,7 +11,7 @@ const auth = useAuthStore()
     <p class="label-caps mb-2">404</p>
     <h1 class="font-display text-3xl text-ink mb-3">Page introuvable</h1>
     <p class="text-sm text-ink-muted mb-8">
-      Cette adresse n'existe pas dans LawApp. Vérifiez l'URL et le port du serveur de développement.
+      Cette adresse n'existe pas dans LawApp. Vérifiez l'URL ou retournez à l'accueil.
     </p>
     <div class="flex flex-col sm:flex-row gap-3 justify-center">
       <RouterLink to="/">

@@ -41,7 +41,7 @@ onMounted(() => {
 
     <main class="max-w-3xl mx-auto px-4 py-8">
       <div v-if="!isApiEnabled()" class="p-6 border border-line bg-white text-sm text-ink-muted">
-        Mode API désactivé. Activez <code class="text-accent">VITE_USE_API=true</code> pour charger les quiz du serveur.
+        Mode API désactivé. Activez <code class="text-accent">VITE_USE_API=true</code> pour charger les quiz en ligne.
       </div>
 
       <div v-else-if="!auth.isAuthenticated" class="p-8 border border-line bg-white text-center space-y-4">

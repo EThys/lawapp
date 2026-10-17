@@ -51,7 +51,7 @@ export async function createQuiz(payload: QuizRequest): Promise<QuizDetail | Qui
   const data = await v1Post<unknown>('private/quiz', body)
   const created = unwrapQuizCreated(data)
   if (!created) {
-    throw new Error('Réponse du serveur invalide après création du quiz.')
+    throw new Error('Quiz créé, mais la confirmation est incomplète. Actualisez la liste des quiz.')
   }
   return created
 }

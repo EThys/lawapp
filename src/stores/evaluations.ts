@@ -578,7 +578,7 @@ export const useEvaluationStore = defineStore('evaluations', () => {
   }): Promise<Evaluation> {
     const token = localStorage.getItem(TOKEN_KEY)?.trim()
     if (!token) {
-      throw new Error('Connectez-vous pour publier une évaluation sur le serveur.')
+      throw new Error('Connectez-vous pour publier une évaluation en ligne.')
     }
 
     const validationErrors = validateEvaluationPayloadForApi({
@@ -735,7 +735,7 @@ export const useEvaluationStore = defineStore('evaluations', () => {
       return getById(fallback.id) ?? fallback
     }
 
-    throw new Error('Évaluation créée, mais la réponse du serveur est incomplète. Actualisez la page.')
+    throw new Error('Évaluation créée, mais la confirmation est incomplète. Actualisez la page.')
   }
 
   async function submitAnswersToApi(
@@ -750,7 +750,7 @@ export const useEvaluationStore = defineStore('evaluations', () => {
     if (apiId == null) {
       return {
         ok: false,
-        error: 'Évaluation sans identifiant serveur (apiId). Rejoignez l’épreuve depuis le catalogue.',
+        error: 'Évaluation non synchronisée. Rejoignez l’épreuve depuis le catalogue.',
       }
     }
     try {
@@ -1138,7 +1138,7 @@ export const useEvaluationStore = defineStore('evaluations', () => {
       return {
         ok: false,
         error:
-          'Impossible de relier cette copie au serveur. Ouvrez-la depuis la liste des soumissions, puis réessayez.',
+          'Impossible de relier cette copie en ligne. Ouvrez-la depuis la liste des soumissions, puis réessayez.',
       }
     }
     try {

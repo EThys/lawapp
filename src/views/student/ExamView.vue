@@ -296,7 +296,7 @@ function submitExam(status: 'submitted' | 'expired' = 'submitted') {
         isSubmitting.value = false
         examEnded.value = false
         submitError.value =
-          'Soumission serveur impossible : identifiant d’évaluation manquant. Revenez au dashboard et relancez l’épreuve.'
+          'Envoi impossible : identifiant d’évaluation manquant. Revenez au tableau de bord et relancez l’épreuve.'
         if (import.meta.env.DEV) {
           console.warn('[LawApp] submit skipped — no apiId', {
             evaluationId: eval_.id,
@@ -320,7 +320,7 @@ function submitExam(status: 'submitted' | 'expired' = 'submitted') {
         examEnded.value = false
         submitError.value =
           result.error ||
-          'Impossible d\'envoyer vos réponses au serveur. Vérifiez votre connexion et réessayez.'
+          'Impossible d\'envoyer vos réponses. Vérifiez votre connexion et réessayez.'
         return
       }
       await store.loadMySubmission(result.apiId, sessionId, { force: true })

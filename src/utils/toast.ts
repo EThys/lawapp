@@ -1,5 +1,6 @@
 import { toast, type ExternalToast } from 'vue-sonner'
 import { extractApiError } from '@/api/http'
+import { genericActionFailedMessage } from '@/utils/userFacingErrors'
 
 const defaults: ExternalToast = {
   duration: 4200,
@@ -19,7 +20,7 @@ export const appToast = {
     return toast.warning(message, { ...defaults, ...opts })
   },
   /** Affiche l’erreur API extraite (ou un fallback). */
-  apiError(error: unknown, fallback = 'Une erreur est survenue.') {
+  apiError(error: unknown, fallback = genericActionFailedMessage()) {
     const message = extractApiError(error) || fallback
     return toast.error(message, { ...defaults, duration: 5600 })
   },

@@ -91,7 +91,7 @@ async function loadEvaluationDetail() {
     try {
       const found = await store.fetchEvaluationById(apiId)
       if (!found && !store.getById(id) && !store.getByCode(id)) {
-        loadError.value = 'Évaluation introuvable sur le serveur.'
+        loadError.value = 'Évaluation introuvable. Actualisez la page ou vérifiez vos accès.'
       }
     } catch {
       loadError.value = 'Impossible de charger le détail de l’évaluation.'

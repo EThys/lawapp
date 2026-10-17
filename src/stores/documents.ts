@@ -122,7 +122,7 @@ export const useDocumentStore = defineStore('documents', () => {
           current.value = matched
           return { ok: true, document: matched }
         }
-        return { ok: false, error: 'Document créé, mais la réponse serveur est incomplète.' }
+        return { ok: false, error: 'Document créé, mais la confirmation est incomplète. Actualisez la page.' }
       }
       current.value = created
       const idx = documents.value.findIndex((d) => d.id === created.id)

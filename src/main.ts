@@ -7,6 +7,9 @@ import { seedDemoData, refreshDemoLiveData } from './data/demoSeed'
 import 'vue-sonner/style.css'
 import './style.css'
 import '@/components/layout/dashboard.css'
+import { isApiEnabled } from '@/config/features'
+import { resolveApiBase, resolveAuthBase } from '@/config/api'
+import { bootLoadInterruptedMessage, bootStartFailedMessage } from '@/utils/userFacingErrors'
 
 function hideBootSplash() {
   const splash = document.getElementById('boot-splash')
@@ -26,10 +29,6 @@ function showBootError(message: string) {
     subtitle.classList.add('text-red-700')
   }
 }
-
-import { isApiEnabled } from '@/config/features'
-import { resolveApiBase, resolveAuthBase } from '@/config/api'
-import { bootLoadInterruptedMessage, bootStartFailedMessage } from '@/utils/userFacingErrors'
 
 async function bootstrap() {
   if (import.meta.env.DEV && isApiEnabled()) {
@@ -68,15 +67,13 @@ async function bootstrap() {
 
 const bootTimeout = window.setTimeout(() => {
   if (!document.getElementById('app')?.childElementCount) {
-    showBootError(
-      'Chargement interrompu. Vérifiez le port du serveur (npm run dev → 5173) et la console F12.',
-    )
+    showBootError(bootLoadInterruptedMessage())
   }
 }, 12000)
 
 bootstrap()
   .catch((err) => {
     console.error('[LawApp] Échec au démarrage:', err)
-    showBootError('Impossible de démarrer LawApp. Rechargez la page ou relancez npm run dev.')
+    showBootError(bootStartFailedMessage())
   })
   .finally(() => window.clearTimeout(bootTimeout))

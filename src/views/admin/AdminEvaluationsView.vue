@@ -28,7 +28,7 @@ const listColumns = evaluationColumns.filter((c) => c.key !== 'actions')
         <p class="label-caps mb-2">Administration</p>
         <h1 class="font-display text-3xl text-ink tracking-tight">Évaluations</h1>
         <p class="mt-1 text-sm text-ink-muted">
-          {{ myEvaluations.length }} évaluation(s) publiées sur le serveur.
+          {{ myEvaluations.length }} évaluation(s) publiées en ligne.
         </p>
       </div>
     </DashboardSection>
@@ -44,7 +44,7 @@ const listColumns = evaluationColumns.filter((c) => c.key !== 'actions')
         <AppDataTable
           :columns="listColumns"
           :rows="evaluationTableRows"
-          empty-message="Aucune évaluation sur le serveur."
+          empty-message="Aucune évaluation publiée en ligne."
           :page-size="10"
           :page-sizes="[5, 10, 20, 50]"
         >

@@ -1,6 +1,12 @@
 import { TOKEN_KEY, REFRESH_TOKEN_KEY } from '@/config/features'
 import { apiPath, authPath, v1Path, rootPath } from '@/config/api'
-import { networkUnreachableMessage } from '@/utils/userFacingErrors'
+import {
+  genericActionFailedMessage,
+  networkUnreachableMessage,
+  resourceNotFoundMessage,
+  sanitizeUserFacingError,
+  serviceBusyMessage,
+} from '@/utils/userFacingErrors'
 
 export interface HttpError extends Error {
   status?: number
@@ -156,11 +162,11 @@ export function extractApiError(e: unknown): string {
     | { message?: string; error?: string; errors?: string[] | Record<string, string> }
     | undefined
   if (Array.isArray(data?.errors) && data.errors.length) {
-    return data.errors.join(' ')
+    return sanitizeUserFacingError(data.errors.join(' '))
   }
   if (data?.errors && typeof data.errors === 'object' && !Array.isArray(data.errors)) {
     const msgs = Object.values(data.errors).filter(Boolean)
-    if (msgs.length) return msgs.join(' ')
+    if (msgs.length) return sanitizeUserFacingError(msgs.join(' '))
   }
   const raw = data?.message ?? data?.error ?? err.message
   const networkFail =
@@ -172,16 +178,16 @@ export function extractApiError(e: unknown): string {
     /network request failed/i.test(raw)
 
   if (networkFail) {
-    if (err.status === 400) return 'Requête invalide (400). Vérifiez les champs du formulaire.'
+    if (err.status === 400) return 'Requête invalide. Vérifiez les champs du formulaire.'
     if (err.status === 401) return 'Session expirée ou non autorisée. Reconnectez-vous.'
     if (err.status === 403) return 'Accès refusé.'
-    if (err.status === 404) return 'Ressource introuvable sur le serveur.'
+    if (err.status === 404) return resourceNotFoundMessage()
     if (err.status === 409) return 'Ce compte existe déjà.'
-    if (err.status && err.status >= 500) return 'Le serveur est temporairement indisponible. Réessayez.'
-    return 'Connexion au serveur impossible. Vérifiez votre réseau et que LawApp tourne bien (npm run dev).'
+    if (err.status && err.status >= 500) return serviceBusyMessage()
+    return networkUnreachableMessage()
   }
   if (/internal server error/i.test(raw) || (err.status && err.status >= 500 && /HTTP error/i.test(raw))) {
-    return 'Le serveur a rencontré une erreur. Réessayez, ou continuez sans créer cette entrée au catalogue.'
+    return serviceBusyMessage()
   }
   if (/invalid credentials/i.test(raw)) return 'Identifiant ou mot de passe incorrect.'
   if (/invalid or missing jwt/i.test(raw)) return 'Session expirée. Reconnectez-vous.'
@@ -192,7 +198,7 @@ export function extractApiError(e: unknown): string {
   if (/format de requ.?te json invalide/i.test(raw)) {
     return 'Publication refusée : format des questions incorrect. Rechargez la page (Ctrl+F5) puis réessayez.'
   }
-  return raw
+  return sanitizeUserFacingError(typeof raw === 'string' ? raw : genericActionFailedMessage())
 }
 
 export async function apiGet<T>(path: string, skipAuth = false): Promise<T> {

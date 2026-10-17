@@ -627,7 +627,7 @@ onMounted(async () => {
         return
       }
       appToast.error(
-        'Copie introuvable sur le serveur. Reconnectez-vous avec le même compte étudiant.',
+        'Copie introuvable en ligne. Reconnectez-vous avec le même compte étudiant.',
       )
       router.replace('/student')
       return
@@ -892,7 +892,7 @@ watch(
               <p class="text-[11px] text-ink-muted">
                 Temps passé
                 <span v-if="isApiEnabled() && session.timeSpentSeconds > 0" class="block text-ink-faint">
-                  Mesure locale ou serveur
+                  Mesure locale ou en ligne
                 </span>
               </p>
 

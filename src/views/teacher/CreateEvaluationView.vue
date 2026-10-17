@@ -1047,7 +1047,7 @@ const evaluationTypes = Object.entries(EVALUATION_TYPE_LABELS) as [EvaluationTyp
 
     <!-- Step 3 -->
     <div v-else class="space-y-6">
-      <AppCard v-if="isApiEnabled()" title="Publication sur le serveur">
+      <AppCard v-if="isApiEnabled()" title="Publication en ligne">
         <p class="text-sm text-ink-muted mb-4">
           Récapitulatif de ce qui sera enregistré pour vos étudiants.
         </p>

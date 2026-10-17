@@ -72,7 +72,7 @@ async function handleLogin() {
       <h1 class="font-display text-3xl text-ink tracking-tight">Accéder à votre espace</h1>
       <p class="mt-2 text-sm text-ink-muted leading-relaxed">
         Connexion à votre compte. Votre espace enseignant ou étudiant est détecté automatiquement
-        si le profil existe déjà sur le serveur.
+        si le profil existe déjà sur votre compte.
       </p>
     </div>
 

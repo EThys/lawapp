@@ -141,7 +141,7 @@ export const useClassroomStore = defineStore('classrooms', () => {
         myClassrooms.value.unshift(created)
       }
       if (!created?.id) {
-        return { ok: false, error: 'Classe créée, mais réponse serveur incomplète.' }
+        return { ok: false, error: 'Classe créée, mais la confirmation est incomplète. Actualisez la page.' }
       }
       setClassroomKind(created.id, roomKind)
       current.value = created

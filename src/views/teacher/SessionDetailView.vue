@@ -323,7 +323,7 @@ async function saveCorrection() {
         appToast.error(result.error)
         return
       }
-      appToast.success('Notes enregistrées sur le serveur.')
+      appToast.success('Notes enregistrées.')
       initGrades()
       return
     }
