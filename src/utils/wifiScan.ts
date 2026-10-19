@@ -1,5 +1,4 @@
 import { captureNetworkFingerprint } from '@/utils/localNetwork'
-import { wifiListFailedMessage, wifiScanUnavailableMessage } from '@/utils/userFacingErrors'
 
 export interface WifiNetwork {
   ssid: string

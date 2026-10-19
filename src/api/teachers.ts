@@ -5,7 +5,7 @@ import type {
   ValidationAccountTeacher,
   ApiMessageResponse,
 } from '@/api/types'
-import { unwrapList, unwrapObject } from '@/utils/apiHelpers'
+import { unwrapList } from '@/utils/apiHelpers'
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v)
