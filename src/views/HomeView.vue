@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import gsap from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppButton from '@/components/ui/AppButton.vue'
@@ -20,9 +22,16 @@ import {
   CircleCheck,
   Zap,
   Users,
+  UserRound,
+  KeyRound,
+  ShieldCheck,
 } from '@lucide/vue'
 
+gsap.registerPlugin(ScrollTrigger)
+
 const auth = useAuthStore()
+const whyRef = ref<HTMLElement | null>(null)
+let whyMotion: gsap.Context | null = null
 
 /** Bandeau bas de page : inscription / accès selon invité ou compte existant. */
 const homeFooterTeacherCta = computed(() => {
@@ -96,63 +105,94 @@ const modules = computed(() => [
 const capabilities = [
   {
     num: 'I',
+    icon: FileText,
     title: 'Création d\'évaluations',
     body: 'Concevez des évaluations pour vos étudiants, élèves et parcours de formation. Questions QCM, vrai/faux et réponses courtes, avec barème personnalisé.',
   },
   {
     num: 'II',
+    icon: Shield,
     title: 'Surveillance intégrée',
     body: 'Chronomètre strict, détection de changement d\'onglet, blocage du copier-coller et mode plein écran obligatoire.',
   },
   {
     num: 'III',
+    icon: Sparkles,
     title: 'Droit Ludique',
     body: 'Capsules juridiques courtes, quiz interactifs et défilement vertical. Accessible à tous, du lycéen à l\'avocat.',
   },
   {
     num: 'IV',
+    icon: BarChart3,
     title: 'Résultats traçables',
     body: 'Tableau de bord enseignant, historique étudiant, export CSV et enregistrement de chaque violation.',
+  },
+]
+
+const processSteps = [
+  {
+    n: '01',
+    icon: UserRound,
+    title: 'Inscription et connexion',
+    body: 'Compte enseignant ou étudiant, avec identifiants distincts et espaces dédiés.',
+  },
+  {
+    n: '02',
+    icon: KeyRound,
+    title: 'Diffusion par code',
+    body: 'L\'enseignant publie l\'évaluation et partage un code à 6 caractères ou un lien direct.',
+  },
+  {
+    n: '03',
+    icon: ShieldCheck,
+    title: 'Passation surveillée',
+    body: 'L\'étudiant passe l\'épreuve sous chrono. Toute infraction est consignée automatiquement.',
   },
 ]
 
 const whyChooseUs = [
   {
     icon: Shield,
-    title: 'Épreuves fiables',
-    body: 'Chronomètre, anti-triche configurable et journal des incidents : vous gardez la main sur l’intégrité de chaque session.',
+    fx: 'shield',
+    title: 'Des épreuves sérieuses',
+    body: 'Le temps est limité. Vous choisissez les contrôles anti-triche. Chaque incident est noté.',
   },
   {
     icon: Zap,
-    title: 'Mise en ligne rapide',
-    body: 'Créez un QCM ou un devoir, publiez-le et partagez un code en quelques minutes — sans installation côté étudiant.',
+    fx: 'zap',
+    title: 'Prêt en quelques minutes',
+    body: 'Créez un QCM ou un devoir, puis envoyez un code. L’étudiant n’installe rien.',
   },
   {
     icon: BarChart3,
-    title: 'Correction et suivi',
-    body: 'Tableau de bord enseignant, historique étudiant et export des résultats pour piloter votre cohorte.',
+    fx: 'chart',
+    title: 'Notes faciles à suivre',
+    body: 'Vous voyez les résultats, l’historique de chaque étudiant, et vous pouvez les exporter.',
   },
   {
     icon: Users,
-    title: 'Rôles bien séparés',
-    body: 'Espaces enseignant et étudiant distincts, avec parcours d’inscription adaptés à chaque profil.',
+    fx: 'users',
+    title: 'Deux espaces distincts',
+    body: 'L’enseignant et l’étudiant ont chacun leur espace, et leur propre inscription.',
   },
   {
     icon: FileText,
-    title: 'Formats variés',
-    body: 'TP, interrogations, devoirs et exercices : QCM, vrai/faux et réponses courtes avec barème personnalisé.',
+    fx: 'file',
+    title: 'Plusieurs formats',
+    body: 'TP, interrogation, devoir ou exercice. QCM, vrai/faux ou réponse courte. Vous fixez les points.',
   },
   {
     icon: CircleCheck,
-    title: 'Prêt pour l’échelle',
-    body: 'Concours, certification ou contrôle continu : une même plateforme du amphi au recrutement.',
+    fx: 'check',
+    title: 'Du petit groupe au concours',
+    body: 'Contrôle continu, concours, certification ou recrutement : le même outil suffit.',
   },
 ]
 
-const whyStats = [
+const whyStats: { value: string; label: string; count?: number; suffix?: string }[] = [
   { value: '< 5 min', label: 'pour publier une épreuve' },
-  { value: '100 %', label: 'des passations tracées' },
-  { value: '4', label: 'types d’évaluation' },
+  { value: '100 %', label: 'des passages sont suivis', count: 100, suffix: ' %' },
+  { value: '4', label: 'types d’épreuves', count: 4, suffix: '' },
 ]
 
 const pillars = [
@@ -206,6 +246,41 @@ const faqItems = [
       'Les examens en ligne offrent plusieurs avantages : flexibilité géographique (passer l’examen depuis n’importe où), réduction des coûts logistiques, accès rapide aux résultats, et analyse automatisée des performances pour les formateurs.',
   },
 ]
+
+onMounted(() => {
+  const root = whyRef.value
+  if (root && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    whyMotion = gsap.context(() => {
+      ScrollTrigger.create({
+        trigger: root,
+        start: 'top 80%',
+        once: true,
+        onEnter: () => {
+          root.classList.add('is-playing')
+          root.querySelectorAll<HTMLElement>('[data-count]').forEach((el) => {
+            const target = Number(el.dataset.count)
+            const suffix = el.dataset.suffix ?? ''
+            const proxy = { n: 0 }
+            gsap.to(proxy, {
+              n: target,
+              duration: 1.1,
+              ease: 'power1.out',
+              snap: { n: 1 },
+              onUpdate: () => {
+                el.textContent = `${Math.round(proxy.n)}${suffix}`
+              },
+            })
+          })
+        },
+      })
+    }, root)
+  }
+
+})
+
+onUnmounted(() => {
+  whyMotion?.revert()
+})
 </script>
 
 <template>
@@ -270,35 +345,37 @@ const faqItems = [
       </div>
     </section>
 
-    <section class="home-trust border-b border-line bg-white animate-fade-in">
-      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-9">
-        <div class="flex flex-wrap justify-center gap-3 lg:gap-4">
-          <div
+    <div class="home-after">
+    <section class="home-trust">
+      <div class="home-shell">
+        <ul class="home-trust__row">
+          <li
             v-for="(pillar, i) in pillars"
             :key="pillar.label"
             v-reveal="i * 60"
             class="home-pillar"
           >
             <span class="home-pillar__icon">
-              <component :is="pillar.icon" class="w-4 h-4" />
+              <component :is="pillar.icon" class="w-5 h-5" />
             </span>
-            {{ pillar.label }}
-          </div>
-        </div>
+            <span class="home-pillar__label">{{ pillar.label }}</span>
+          </li>
+        </ul>
       </div>
     </section>
 
-    <section id="pourquoi" class="home-why border-b border-line scroll-mt-20">
-      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 home-why__inner">
+    <section id="pourquoi" ref="whyRef" class="home-why border-b border-line scroll-mt-20">
+      <div class="home-shell home-why__inner">
         <div class="home-why__intro">
-          <div v-reveal class="home-why__copy">
-            <p class="label-caps mb-3">Pourquoi nous choisir</p>
-            <h2 class="font-display text-2xl sm:text-3xl text-ink leading-snug">
-              Une plateforme d’évaluation conçue pour la sérénité des formateurs
+          <div class="home-why__copy">
+            <p class="home-kicker home-why__kicker">Pourquoi nous choisir</p>
+            <span class="home-why__rule" aria-hidden="true" />
+            <h2 class="home-section-title">
+              Tout pour évaluer, dans un seul outil
             </h2>
-            <p class="text-sm text-ink-muted mt-4 leading-relaxed max-w-lg">
-              LawApp réunit création d’épreuves, passation sécurisée et analyse des résultats —
-              sans empiler les outils ni sacrifier la crédibilité des notes.
+            <p class="home-why__lead">
+              Vous créez l’épreuve. L’étudiant la passe en ligne. Vous lisez les notes.
+              Pas besoin d’installer quoi que ce soit.
             </p>
             <RouterLink
               v-if="!auth.isAuthenticated"
@@ -322,9 +399,17 @@ const faqItems = [
             </RouterLink>
           </div>
 
-          <ul v-reveal="{ delay: 80 }" class="home-why__stats">
+          <ul class="home-why__stats">
             <li v-for="stat in whyStats" :key="stat.label" class="home-why__stat">
-              <span class="home-why__stat-value">{{ stat.value }}</span>
+              <span class="home-why__stat-value">
+                <span
+                  v-if="stat.count != null"
+                  class="home-why__count"
+                  :data-count="stat.count"
+                  :data-suffix="stat.suffix"
+                >{{ stat.value }}</span>
+                <template v-else>{{ stat.value }}</template>
+              </span>
               <span class="home-why__stat-label">{{ stat.label }}</span>
             </li>
           </ul>
@@ -332,10 +417,10 @@ const faqItems = [
 
         <ul class="home-why__grid">
           <li
-            v-for="(item, i) in whyChooseUs"
+            v-for="item in whyChooseUs"
             :key="item.title"
-            v-reveal="{ delay: i * 70 }"
             class="home-why__card"
+            :class="`home-why__card--${item.fx}`"
           >
             <span class="home-why__card-icon" aria-hidden="true">
               <component :is="item.icon" class="w-5 h-5" />
@@ -347,17 +432,17 @@ const faqItems = [
       </div>
     </section>
 
-    <section class="py-16 lg:py-24 border-b border-line bg-gradient-to-b from-paper-warm to-white">
-      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div v-reveal class="text-center mb-12 max-w-2xl mx-auto">
-          <p class="label-caps mb-3">Deux modules</p>
-          <h2 class="font-display text-2xl sm:text-3xl text-ink">Une plateforme, deux usages complémentaires.</h2>
+    <section class="home-band">
+      <div class="home-shell">
+        <div v-reveal class="home-block-head">
+          <p class="home-kicker">Deux modules</p>
+          <h2 class="home-section-title">Une plateforme, deux usages complémentaires.</h2>
           <p class="text-sm text-ink-muted mt-3 leading-relaxed">
             Pour les formateurs qui créent des évaluations, et pour ceux qui veulent comprendre le droit sans lourdeur.
           </p>
         </div>
 
-        <div class="grid md:grid-cols-2 gap-6 lg:gap-8 max-w-5xl mx-auto">
+        <div class="grid md:grid-cols-2 gap-6 lg:gap-8">
           <article
             v-for="(mod, i) in modules"
             :key="mod.title"
@@ -394,76 +479,68 @@ const faqItems = [
       </div>
     </section>
 
-    <section class="py-16 lg:py-20">
-      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div v-reveal class="mb-12">
-          <p class="label-caps mb-3">Fonctionnalités</p>
-          <h2 class="font-display text-2xl sm:text-3xl text-ink">Un outil complet, pas un gadget.</h2>
+    <section class="home-band home-features">
+      <div class="home-shell home-features__layout">
+        <div v-reveal class="home-features__intro">
+          <p class="home-kicker">Fonctionnalités</p>
+          <h2 class="home-section-title">Un outil complet, pas un gadget.</h2>
         </div>
 
-        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-line border border-line">
-          <article
+        <ol class="home-features__list">
+          <li
             v-for="(cap, i) in capabilities"
             :key="cap.num"
-            v-reveal="i * 100"
-            class="home-cap bg-white p-8 lg:p-10 hover-lift group"
+            v-reveal="{ delay: i * 120, from: 'right' }"
+            class="home-feature"
           >
-            <p class="font-display text-3xl text-accent/30 mb-4 transition-colors group-hover:text-accent/50">{{ cap.num }}</p>
-            <h3 class="font-display text-xl text-ink mb-3">{{ cap.title }}</h3>
-            <p class="text-sm text-ink-muted leading-relaxed">{{ cap.body }}</p>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section class="border-y border-line bg-white py-16 lg:py-24">
-      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="grid lg:grid-cols-2 gap-12 lg:gap-16 items-start">
-          <div v-reveal>
-            <p class="label-caps mb-3">Processus</p>
-            <h2 class="font-display text-2xl sm:text-3xl text-ink leading-snug">
-              De la conception à la correction, en trois étapes.
-            </h2>
-            <p class="text-sm text-ink-muted mt-4 leading-relaxed max-w-md">
-              Publiez une épreuve en quelques minutes, partagez un code simple, puis suivez la passation en direct.
-            </p>
-            <div class="home-process-visual mt-8">
-              <img
-                src="/home-eval-preview.svg"
-                alt="Parcours de publication d’une évaluation"
-                class="w-full rounded-xl border border-line shadow-md ring-1 ring-black/5"
-                loading="lazy"
-              />
+            <span class="home-feature__num">{{ cap.num }}</span>
+            <div>
+              <h3 class="home-feature__title">{{ cap.title }}</h3>
+              <p class="home-feature__body">{{ cap.body }}</p>
             </div>
-          </div>
-          <ol class="space-y-0 divide-y divide-line border border-line rounded-xl overflow-hidden shadow-sm">
-            <li
-              v-for="(item, i) in [
-                { n: '01', t: 'Inscription et connexion', d: 'Compte enseignant ou étudiant, avec identifiants distincts et espaces dédiés.' },
-                { n: '02', t: 'Diffusion par code', d: 'L\'enseignant publie l\'évaluation et partage un code à 6 caractères ou un lien direct.' },
-                { n: '03', t: 'Passation surveillée', d: 'L\'étudiant passe l\'épreuve sous chrono. Toute infraction est consignée automatiquement.' },
-              ]"
-              :key="item.n"
-              v-reveal="{ delay: i * 80, from: 'right' }"
-              class="home-step flex gap-6 p-6"
-              :class="i % 2 === 0 ? 'bg-paper/50' : ''"
-            >
-              <span class="text-sm font-semibold text-accent tabular-nums w-6 flex-shrink-0">{{ item.n }}</span>
-              <div>
-                <p class="text-sm font-semibold text-ink">{{ item.t }}</p>
-                <p class="text-xs text-ink-muted mt-1 leading-relaxed">{{ item.d }}</p>
-              </div>
-            </li>
-          </ol>
-        </div>
+            <component :is="cap.icon" class="home-feature__icon" />
+          </li>
+        </ol>
       </div>
     </section>
 
-    <section class="py-16 lg:py-24 border-b border-line home-use-cases">
-      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div v-reveal class="text-center mb-12 max-w-2xl mx-auto">
-          <p class="label-caps mb-3">Cas d’usage</p>
-          <h2 class="font-display text-2xl sm:text-3xl text-ink">
+    <section class="home-band home-process">
+      <div class="home-shell">
+        <div v-reveal class="home-block-head home-process__head">
+          <p class="home-kicker">Processus</p>
+          <h2 class="home-section-title">
+            De la conception à la correction, en trois étapes.
+          </h2>
+          <p class="text-sm text-ink-muted leading-relaxed">
+            Publiez une épreuve en quelques minutes, partagez un code simple, puis suivez la passation en direct.
+          </p>
+        </div>
+
+        <ol class="home-flow">
+          <li
+            v-for="(step, i) in processSteps"
+            :key="step.n"
+            v-reveal="{ delay: 70 + i * 90 }"
+            class="home-flow__step"
+          >
+            <span class="home-flow__mark">{{ step.n }}</span>
+            <article class="home-flow__card">
+              <span class="home-flow__icon">
+                <component :is="step.icon" class="w-5 h-5" />
+              </span>
+              <h3 class="font-display text-lg text-ink">{{ step.title }}</h3>
+              <p class="text-sm text-ink-muted leading-relaxed mt-2">{{ step.body }}</p>
+            </article>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="home-band home-use-cases">
+      <div class="home-shell">
+        <div v-reveal class="home-block-head">
+          <p class="home-kicker">Cas d’usage</p>
+          <h2 class="home-section-title">
             Construit pour l’évaluation en ligne
           </h2>
           <p class="text-sm text-ink-muted mt-3 leading-relaxed">
@@ -504,9 +581,9 @@ const faqItems = [
 
     <section id="faq" class="home-faq scroll-mt-20">
       <div class="home-faq__glow" aria-hidden="true" />
-      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 home-faq__inner">
+      <div class="home-shell home-faq__inner">
         <header v-reveal class="home-faq__header">
-          <h2 class="home-faq__title font-display">
+          <h2 class="home-section-title home-faq__title">
             Questions fréquemment posées
           </h2>
           <p class="home-faq__lead">
@@ -532,9 +609,9 @@ const faqItems = [
 
     <section class="home-cta relative bg-brand-dark text-white py-16 lg:py-20 overflow-hidden">
       <AppDecorativeBg />
-      <div v-reveal class="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+      <div v-reveal class="relative home-shell flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
         <div>
-          <h2 class="font-display text-2xl sm:text-3xl leading-snug">
+          <h2 class="home-section-title home-cta__title">
             Prêt à créer vos évaluations ?
           </h2>
           <p class="text-sm text-white/50 mt-3 max-w-md leading-relaxed">
@@ -561,6 +638,7 @@ const faqItems = [
         </div>
       </div>
     </section>
+    </div>
   </div>
 </template>
 
@@ -632,11 +710,11 @@ const faqItems = [
 .hero__inner {
   position: relative;
   z-index: 1;
-  max-width: 72rem;
+  max-width: 90rem;
   margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr;
-  min-height: min(88vh, 44rem);
+  min-height: calc(100dvh - 7.5rem);
 }
 
 @media (min-width: 1024px) {
@@ -706,11 +784,11 @@ const faqItems = [
 }
 
 .hero__title {
-  font-size: clamp(2.5rem, 6vw, 3.75rem);
-  line-height: 1.05;
-  letter-spacing: -0.03em;
+  font-size: clamp(2.85rem, 5.6vw, 4.75rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
   color: var(--color-ink);
-  max-width: 12ch;
+  max-width: 16ch;
 }
 
 .hero__title-muted {
@@ -903,60 +981,285 @@ const faqItems = [
 
   .home-pillar:hover,
   .home-module:hover .home-module__icon,
-  .home-step:hover {
+  .home-flow__card:hover {
     transform: none;
   }
 }
 
+.home-shell {
+  width: min(90rem, calc(100% - 2rem));
+  margin-inline: auto;
+}
+
+@media (min-width: 1024px) {
+  .home-shell {
+    width: min(90rem, calc(100% - 5rem));
+  }
+}
+
+.home-after {
+  position: relative;
+  background:
+    radial-gradient(ellipse 70% 42% at 8% 0%, rgb(25 118 210 / 0.16), transparent 58%),
+    radial-gradient(ellipse 55% 38% at 100% 12%, rgb(13 71 161 / 0.12), transparent 52%),
+    radial-gradient(ellipse 48% 36% at 72% 100%, rgb(25 118 210 / 0.1), transparent 60%),
+    linear-gradient(180deg, #e7eef6 0%, #f4f7fb 42%, #e9f0f8 100%);
+}
+
+.home-after::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgb(13 71 161 / 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(13 71 161 / 0.045) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.7), transparent 78%);
+}
+
+.home-after > * {
+  position: relative;
+  z-index: 1;
+}
+
+.home-band {
+  padding: 4.5rem 0;
+}
+
+.home-process {
+  background:
+    radial-gradient(ellipse 46% 50% at 50% 0%, rgb(25 118 210 / 0.1), transparent 70%),
+    #fff;
+}
+
+.home-process__head {
+  max-width: 38rem;
+  margin-inline: auto;
+  margin-bottom: 2.75rem;
+  text-align: center;
+}
+
+.home-process__head .home-section-title {
+  text-transform: none;
+  letter-spacing: -0.03em;
+}
+
+.home-flow {
+  position: relative;
+  display: grid;
+  gap: 1.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-flow::before {
+  content: '';
+  position: absolute;
+  left: 1.25rem;
+  top: 1.3rem;
+  bottom: 2rem;
+  width: 2px;
+  background: rgb(13 71 161 / 0.16);
+}
+
+.home-flow__step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding-left: 3.6rem;
+}
+
+.home-flow__mark {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 999px;
+  background: var(--color-brand);
+  color: white;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  box-shadow: 0 8px 18px rgb(13 71 161 / 0.24);
+}
+
+.home-flow__card {
+  height: 100%;
+  padding: 1.25rem 1.2rem 1.35rem;
+  border: 1px solid rgb(13 71 161 / 0.08);
+  border-radius: 0.85rem;
+  background: white;
+  box-shadow: 0 16px 36px rgb(13 71 161 / 0.07);
+  transition: transform 0.35s ease, box-shadow 0.35s ease;
+}
+
+.home-flow__card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 22px 42px rgb(13 71 161 / 0.14);
+}
+
+.home-flow__icon {
+  display: grid;
+  place-items: center;
+  width: 2.45rem;
+  height: 2.45rem;
+  margin-bottom: 0.9rem;
+  border-radius: 0.7rem;
+  background: rgb(13 71 161 / 0.08);
+  color: var(--color-brand);
+}
+
+@media (min-width: 900px) {
+  .home-flow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.75rem;
+  }
+
+  .home-flow::before {
+    top: 1.3rem;
+    bottom: auto;
+    left: calc(100% / 6);
+    right: calc(100% / 6);
+    width: auto;
+    height: 2px;
+  }
+
+  .home-flow__step {
+    align-items: center;
+    padding-left: 0;
+  }
+
+  .home-flow__mark {
+    position: relative;
+    left: auto;
+    top: auto;
+    margin-bottom: 1.15rem;
+  }
+
+  .home-flow__card {
+    width: 100%;
+  }
+}
+
+.home-kicker {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.home-section-title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: clamp(1.7rem, 2.8vw, 2.45rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1.15;
+  color: var(--color-brand-dark);
+}
+
+.home-block-head {
+  max-width: 40rem;
+  margin-bottom: 1.75rem;
+}
+
+.home-block-head p:last-of-type,
+.home-block-head .text-sm {
+  margin-top: 0.75rem;
+}
+
+.home-trust {
+  background: linear-gradient(180deg, #1565c0 0%, var(--color-brand) 58%, #0a3d8f 100%);
+  color: white;
+}
+
+.home-trust__row {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0;
+  min-height: 6.3rem;
+  margin: 0;
+  padding: 0.65rem 0.5rem;
+  list-style: none;
+}
+
 .home-pillar {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.45rem 0.9rem 0.45rem 0.45rem;
-  border-radius: 9999px;
-  border: 1px solid var(--color-line);
-  background: var(--color-paper-warm);
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--color-ink-muted);
-  transition:
-    color 0.25s ease,
-    border-color 0.25s ease,
-    background 0.25s ease,
-    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.25s ease;
+  justify-content: center;
+  gap: 0.75rem;
+  flex: 0 1 auto;
+  min-height: 4.6rem;
+  padding: 0.55rem 1.35rem;
+  color: white;
+  text-align: left;
+}
+
+.home-pillar + .home-pillar {
+  box-shadow: inset 1px 0 0 rgb(255 255 255 / 0.28);
 }
 
 .home-pillar__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.85rem;
-  height: 1.85rem;
+  flex-shrink: 0;
+  width: 2.55rem;
+  height: 2.55rem;
   border-radius: 999px;
-  background: white;
-  border: 1px solid var(--color-line);
-  color: var(--color-accent);
+  background: rgb(255 255 255 / 0.14);
+  color: white;
 }
 
-.home-pillar:hover {
-  color: var(--color-brand-dark);
-  border-color: color-mix(in srgb, var(--color-accent) 35%, var(--color-line));
-  background: white;
-  box-shadow: 0 10px 28px rgb(25 118 210 / 0.08);
-  transform: translateY(-2px);
+.home-pillar__label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1.25;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .home-pillar + .home-pillar {
+    box-shadow: none;
+  }
+
+  .home-pillar {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    padding-inline: 1.25rem;
+  }
+
+  .home-pillar__label {
+    white-space: normal;
+  }
+
+  .home-trust__row {
+    align-items: stretch;
+    padding-block: 0.85rem;
+  }
 }
 
 .home-module {
   position: relative;
   overflow: hidden;
-  border-radius: 1rem;
-  border: 1px solid var(--color-line);
+  border-radius: 0.85rem;
   background: white;
-  box-shadow: 0 12px 36px rgb(15 23 42 / 0.05);
-  transition:
-    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.3s ease;
+  box-shadow: 0 18px 44px rgb(13 71 161 / 0.08);
+  transition: transform 0.25s ease;
 }
 
 .home-module:hover {
@@ -1000,8 +1303,14 @@ const faqItems = [
   box-shadow: 0 8px 20px rgb(15 23 42 / 0.1);
 }
 
+.home-module__body h3 {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  color: var(--color-brand-dark);
+}
+
 .home-module__body {
-  padding: 1.75rem 1.75rem 2rem;
+  padding: 1.15rem 1.15rem 1.35rem;
 }
 
 @media (min-width: 1024px) {
@@ -1011,20 +1320,15 @@ const faqItems = [
 }
 
 .home-use-cases {
-  background:
-    radial-gradient(ellipse 80% 60% at 50% 0%, color-mix(in srgb, var(--color-accent-light) 65%, white), transparent 55%),
-    var(--color-paper-warm);
+  background: transparent;
 }
 
 .home-use-case {
   overflow: hidden;
-  border-radius: 1rem;
-  border: 1px solid var(--color-line);
+  border-radius: 0.85rem;
   background: white;
-  box-shadow: 0 10px 32px rgb(15 23 42 / 0.05);
-  transition:
-    transform 0.3s ease,
-    box-shadow 0.3s ease;
+  box-shadow: 0 18px 44px rgb(13 71 161 / 0.08);
+  transition: transform 0.25s ease;
 }
 
 .home-use-case:hover {
@@ -1034,8 +1338,9 @@ const faqItems = [
 
 .home-use-case__banner {
   position: relative;
-  height: 5.5rem;
+  height: 9.5rem;
   overflow: hidden;
+  background: var(--color-brand);
 }
 
 .home-use-case__pattern {
@@ -1069,17 +1374,52 @@ const faqItems = [
 }
 
 .home-use-case__body {
-  padding: 2rem 1.5rem 1.75rem;
+  padding: 1.85rem 1.15rem 1.25rem;
+}
+
+.home-use-case__body h3 {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  color: var(--color-brand-dark);
+}
+
+.home-why .home-section-title {
+  text-transform: none;
+  letter-spacing: -0.03em;
+  font-size: clamp(1.9rem, 3vw, 2.7rem);
+  max-width: 16ch;
+}
+
+.home-why__kicker {
+  margin-bottom: 0.7rem;
+}
+
+.home-why__rule {
+  display: block;
+  width: 4.25rem;
+  height: 3px;
+  margin: 0 0 1rem;
+  border-radius: 999px;
+  background: var(--color-brand);
+  transform-origin: left center;
+}
+
+.home-why__lead {
+  max-width: 36rem;
+  margin: 1rem 0 0;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: var(--color-ink-muted);
 }
 
 .home-why {
-  background: linear-gradient(180deg, white 0%, var(--color-paper-warm) 100%);
-  padding: 4rem 0 4.5rem;
+  background: transparent;
+  padding: 4rem 0 4.25rem;
 }
 
 @media (min-width: 1024px) {
   .home-why {
-    padding: 5rem 0 5.5rem;
+    padding: 5.75rem 0 6.25rem;
   }
 }
 
@@ -1126,24 +1466,34 @@ const faqItems = [
 .home-why__stat {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  padding: 1rem 0.85rem;
-  border-radius: 0.75rem;
-  border: 1px solid var(--color-line);
+  justify-content: center;
+  gap: 0.2rem;
+  min-height: 5.4rem;
+  padding: 1rem 1.05rem;
+  border-radius: 0.85rem;
   background: white;
-  box-shadow: 0 8px 24px rgb(15 23 42 / 0.04);
+  box-shadow: 0 14px 32px rgb(13 71 161 / 0.08);
+}
+
+.home-why__stat:last-child {
+  background: var(--color-brand);
+}
+
+.home-why__stat:last-child .home-why__stat-value,
+.home-why__stat:last-child .home-why__stat-label {
+  color: white;
 }
 
 .home-why__stat-value {
-  font-family: var(--font-display);
   font-size: 1.35rem;
+  font-weight: 800;
   line-height: 1.1;
   color: var(--color-brand-dark);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 .home-why__stat-label {
-  font-size: 0.6875rem;
+  font-size: 0.82rem;
   line-height: 1.35;
   color: var(--color-ink-muted);
 }
@@ -1170,26 +1520,61 @@ const faqItems = [
 }
 
 .home-why__card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  padding: 1.35rem 1.25rem;
+  gap: 0.55rem;
+  padding: 1.35rem 1.25rem 1.4rem;
   border-radius: 0.85rem;
-  border: 1px solid var(--color-line);
   background: white;
+  box-shadow: 0 16px 40px rgb(13 71 161 / 0.08);
+  overflow: hidden;
   transition:
-    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.25s ease,
-    border-color 0.25s ease;
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.45s ease,
+    background 0.45s ease;
+}
+
+.home-why__card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 28%, rgb(255 255 255 / 0.85) 48%, transparent 68%);
+  transform: translateX(-130%);
+  pointer-events: none;
+}
+
+.home-why__card::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-brand), var(--color-accent));
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .home-why__card:hover {
-  transform: translateY(-3px);
-  border-color: color-mix(in srgb, var(--color-accent) 25%, var(--color-line));
-  box-shadow: 0 14px 36px rgb(25 118 210 / 0.08);
+  transform: translateY(-14px) scale(1.025);
+  background: linear-gradient(180deg, white 0%, #f3f8ff 100%);
+  box-shadow:
+    0 28px 50px rgb(13 71 161 / 0.16),
+    0 0 0 1px rgb(25 118 210 / 0.18);
+}
+
+.home-why__card:hover::before {
+  animation: why-shine 0.75s ease;
+}
+
+.home-why__card:hover::after {
+  transform: scaleX(1);
 }
 
 .home-why__card-icon {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1199,19 +1584,178 @@ const faqItems = [
   background: var(--color-accent-light);
   color: var(--color-brand);
   border: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-line));
+  transition:
+    background 0.35s ease,
+    color 0.35s ease,
+    box-shadow 0.35s ease;
 }
+
+.home-why__card:hover .home-why__card-icon {
+  background: var(--color-brand);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 10px 24px rgb(13 71 161 / 0.28);
+}
+
+.home-why__card:hover .home-why__card-title {
+  color: var(--color-brand);
+}
+
+.home-why__card--shield:hover .home-why__card-icon {
+  animation: why-shield 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.home-why__card--shield:hover .home-why__card-icon::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  border: 2px solid var(--color-accent);
+  animation: why-ring 0.8s ease;
+}
+
+.home-why__card--zap:hover .home-why__card-icon {
+  animation: why-zap 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.home-why__card--zap:hover {
+  background: linear-gradient(100deg, white 0%, #e8f2ff 42%, white 100%);
+}
+
+.home-why__card--chart:hover .home-why__card-icon svg {
+  transform-origin: bottom center;
+  animation: why-chart 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.home-why__card--users:hover .home-why__card-icon {
+  animation: why-users 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.home-why__card--file:hover .home-why__card-icon {
+  perspective: 400px;
+  animation: why-file 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.home-why__card--check:hover .home-why__card-icon {
+  animation: why-check 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.home-why__card--check:hover .home-why__card-icon::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 999px;
+  border: 2px solid var(--color-brand);
+  animation: why-ring 0.7s ease;
+}
+
+@keyframes why-shine {
+  from { transform: translateX(-130%); }
+  to { transform: translateX(130%); }
+}
+
+@keyframes why-ring {
+  from { transform: scale(0.7); opacity: 0.9; }
+  to { transform: scale(1.7); opacity: 0; }
+}
+
+@keyframes why-shield {
+  0% { transform: scale(1) rotate(0); }
+  35% { transform: scale(1.28) rotate(-14deg); }
+  65% { transform: scale(0.94) rotate(8deg); }
+  100% { transform: scale(1.08) rotate(0); }
+}
+
+@keyframes why-zap {
+  0% { transform: translateX(0) rotate(0); }
+  25% { transform: translateX(-8px) rotate(-16deg) scale(1.2); }
+  55% { transform: translateX(10px) rotate(12deg) scale(1.16); }
+  100% { transform: translateX(0) rotate(0) scale(1.06); }
+}
+
+@keyframes why-chart {
+  0% { transform: scaleY(0.25); }
+  65% { transform: scaleY(1.25); }
+  100% { transform: scaleY(1); }
+}
+
+@keyframes why-users {
+  0% { transform: translateX(0) scale(1); }
+  35% { transform: translateX(-8px) scale(1.18); }
+  70% { transform: translateX(8px) scale(1.18); }
+  100% { transform: translateX(0) scale(1.06); }
+}
+
+@keyframes why-file {
+  0% { transform: rotateY(0) scale(1); }
+  50% { transform: rotateY(180deg) scale(1.18); }
+  100% { transform: rotateY(360deg) scale(1.06); }
+}
+
+@keyframes why-check {
+  0% { transform: scale(0.35) rotate(-18deg); }
+  55% { transform: scale(1.35) rotate(8deg); }
+  100% { transform: scale(1.08) rotate(0); }
+}
+
+@keyframes why-rise {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes why-pop {
+  from { opacity: 0; transform: scale(0.92) translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes why-draw {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.home-why.is-playing .home-why__kicker,
+.home-why.is-playing .home-section-title,
+.home-why.is-playing .home-why__lead,
+.home-why.is-playing .home-why__cta {
+  animation: why-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.home-why.is-playing .home-section-title { animation-delay: 0.08s; }
+.home-why.is-playing .home-why__lead { animation-delay: 0.16s; }
+.home-why.is-playing .home-why__cta { animation-delay: 0.24s; }
+
+.home-why.is-playing .home-why__rule {
+  animation: why-draw 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.12s backwards;
+}
+
+.home-why.is-playing .home-why__stat {
+  animation: why-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.home-why.is-playing .home-why__stat:nth-child(2) { animation-delay: 0.1s; }
+.home-why.is-playing .home-why__stat:nth-child(3) { animation-delay: 0.2s; }
+
+.home-why.is-playing .home-why__card {
+  animation: why-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.home-why.is-playing .home-why__card:nth-child(2) { animation-delay: 0.08s; }
+.home-why.is-playing .home-why__card:nth-child(3) { animation-delay: 0.16s; }
+.home-why.is-playing .home-why__card:nth-child(4) { animation-delay: 0.24s; }
+.home-why.is-playing .home-why__card:nth-child(5) { animation-delay: 0.32s; }
+.home-why.is-playing .home-why__card:nth-child(6) { animation-delay: 0.4s; }
 
 .home-why__card-title {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.0625rem;
-  line-height: 1.3;
-  color: var(--color-ink);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--color-brand-dark);
 }
 
 .home-why__card-body {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: 0.95rem;
   line-height: 1.65;
   color: var(--color-ink-muted);
 }
@@ -1224,9 +1768,8 @@ const faqItems = [
 
 .home-faq {
   position: relative;
-  padding: 4rem 0 5rem;
-  background: linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper-warm) 100%);
-  border-bottom: 1px solid var(--color-line);
+  padding: 3.25rem 0 3.75rem;
+  background: white;
   overflow: hidden;
 }
 
@@ -1253,9 +1796,9 @@ const faqItems = [
 }
 
 .home-faq__header {
-  max-width: 40rem;
-  margin: 0 auto 2.5rem;
-  text-align: center;
+  max-width: 44rem;
+  margin: 0 0 1.5rem;
+  text-align: left;
 }
 
 @media (min-width: 1024px) {
@@ -1279,12 +1822,86 @@ const faqItems = [
 }
 
 .home-faq__panel {
-  max-width: 44rem;
-  margin: 0 auto;
-  border-radius: 1rem;
-  background: white;
-  box-shadow: 0 20px 50px rgb(15 23 42 / 0.06);
+  max-width: 72rem;
+  border-radius: 0.85rem;
+  background:
+    linear-gradient(180deg, #f7fafc 0%, #eef3f8 100%);
+  box-shadow: inset 0 1px 0 white, 0 18px 40px rgb(13 71 161 / 0.06);
   overflow: hidden;
+}
+
+.home-features__layout {
+  display: grid;
+  gap: 2rem;
+  align-items: start;
+}
+
+.home-features__intro .home-section-title {
+  max-width: 12ch;
+}
+
+.home-features__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-feature {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 1rem 1.25rem;
+  align-items: center;
+  padding: 1.45rem 0.2rem;
+  border-top: 1px solid rgb(13 71 161 / 0.14);
+}
+
+.home-feature:last-child {
+  border-bottom: 1px solid rgb(13 71 161 / 0.14);
+}
+
+.home-feature__num {
+  font-size: clamp(1.8rem, 2.4vw, 2.5rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--color-brand);
+}
+
+.home-feature__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-brand-dark);
+}
+
+.home-feature__body {
+  margin: 0.3rem 0 0;
+  max-width: 42rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--color-ink-muted);
+}
+
+.home-feature__icon {
+  width: 1.35rem;
+  height: 1.35rem;
+  color: var(--color-accent);
+}
+
+@media (min-width: 1024px) {
+  .home-features__layout {
+    grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+    gap: 4.5rem;
+  }
+
+  .home-features__intro {
+    position: sticky;
+    top: 8.5rem;
+  }
+}
+
+.home-cta__title {
+  color: white;
 }
 
 .home-faq__item {
