@@ -1,0 +1,18 @@
+User-agent: *
+Allow: /
+Disallow: /teacher
+Disallow: /student
+Disallow: /admin
+Disallow: /account
+Disallow: /institution
+Disallow: /exam
+Disallow: /onboarding
+Disallow: /join
+Disallow: /presence
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /verify-email
+Disallow: /documents/create
+Disallow: /quiz/create
+
+Sitemap: https://lawapp50.com/sitemap.xml

@@ -2,37 +2,112 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#1976d2" />
+    <meta name="theme-color" content="#0a2f6b" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="description" content="LawApp : évaluations sécurisées et Droit Ludique. Apprenez le droit en format court, type TikTok du droit." />
-    <title>LawApp · Évaluations & Droit Ludique</title>
+    <title>LawApp50 | Créer des évaluations en ligne</title>
+    <meta name="description" content="Créez des évaluations en ligne avec LawApp50 : QCM, devoirs, chrono et anti-triche. Partagez un code, suivez les résultats. Inscription enseignant gratuite." />
+    <meta name="robots" content="index, follow" />
+    <meta name="application-name" content="LawApp50" />
+    <link rel="canonical" href="https://lawapp50.com/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="fr_FR" />
+    <meta property="og:site_name" content="LawApp50" />
+    <meta property="og:title" content="LawApp50 | Créer des évaluations en ligne" />
+    <meta property="og:description" content="Créez des évaluations en ligne avec LawApp50 : QCM, devoirs, chrono et anti-triche. Partagez un code, suivez les résultats. Inscription enseignant gratuite." />
+    <meta property="og:url" content="https://lawapp50.com/" />
+    <meta property="og:image" content="https://lawapp50.com/logo.png" />
+    <meta property="og:image:alt" content="LawApp50, évaluations et formation" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="LawApp50 | Créer des évaluations en ligne" />
+    <meta name="twitter:description" content="Créez des évaluations en ligne avec LawApp50 : QCM, devoirs, chrono et anti-triche. Partagez un code, suivez les résultats. Inscription enseignant gratuite." />
+    <meta name="twitter:image" content="https://lawapp50.com/logo.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://lawapp50.com/#organization",
+            "name": "LawApp50",
+            "url": "https://lawapp50.com/",
+            "logo": "https://lawapp50.com/logo.png",
+            "description": "Plateforme pour créer des évaluations en ligne et former au droit.",
+            "address": {
+              "@type": "PostalAddress",
+              "addressLocality": "Kinshasa",
+              "addressCountry": "CD"
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://lawapp50.com/#website",
+            "url": "https://lawapp50.com/",
+            "name": "LawApp50",
+            "inLanguage": "fr",
+            "publisher": { "@id": "https://lawapp50.com/#organization" }
+          },
+          {
+            "@type": "WebApplication",
+            "name": "LawApp50",
+            "url": "https://lawapp50.com/",
+            "applicationCategory": "EducationalApplication",
+            "operatingSystem": "Web",
+            "inLanguage": "fr",
+            "description": "Créez des évaluations en ligne : QCM, devoirs, chrono, anti-triche, code de passage et résultats.",
+            "featureList": [
+              "Création d'évaluations en ligne",
+              "QCM, vrai/faux et réponses courtes",
+              "Chrono et anti-triche",
+              "Diffusion par code",
+              "Résultats traçables",
+              "Droit Ludique"
+            ],
+            "publisher": { "@id": "https://lawapp50.com/#organization" }
+          }
+        ]
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
     <style>
-      .boot-splash{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#f8fafc;font-family:system-ui,sans-serif}
-      .boot-splash__inner{display:flex;flex-direction:column;align-items:center;gap:.75rem}
-      .boot-splash__logo{width:3.5rem;height:3.5rem;display:flex;align-items:center;justify-content:center;background:#1976d2;color:#fff}
-      .boot-splash__title{font-size:1.5rem;font-weight:600;color:#0f172a;margin:0}
-      .boot-splash__subtitle{font-size:.8125rem;color:#475569;margin:0}
-      .boot-splash__bar{width:8rem;height:3px;margin-top:.5rem;background:#e2e8f0;overflow:hidden}
-      .boot-splash__bar span{display:block;height:100%;width:40%;background:#1976d2;animation:boot-bar-slide 1.1s ease-in-out infinite}
-      @keyframes boot-bar-slide{0%{transform:translateX(-120%)}100%{transform:translateX(320%)}}
+      .boot-splash{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;overflow:hidden;background:radial-gradient(ellipse 70% 55% at 50% 42%,#e8f1fb 0%,#f8fafc 58%,#f4f7fb 100%);font-family:'IBM Plex Sans',system-ui,sans-serif;color:#0f172a}
+      .boot-splash__glow{position:absolute;width:22rem;height:22rem;border-radius:999px;background:radial-gradient(circle,rgba(25,118,210,.16),transparent 68%);filter:blur(2px);animation:boot-glow 2.8s ease-in-out infinite}
+      .boot-splash__inner{position:relative;display:flex;flex-direction:column;align-items:center;gap:.35rem;padding:2rem;text-align:center}
+      .boot-splash__logo{width:7.25rem;height:7.25rem;display:flex;align-items:center;justify-content:center;margin-bottom:.35rem;animation:boot-logo-in .7s cubic-bezier(.22,1,.36,1) both}
+      .boot-splash__logo img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 16px 28px rgba(10,47,107,.16))}
+      .boot-splash__title{margin:.15rem 0 0;font-size:1.85rem;font-weight:700;letter-spacing:-.04em;color:#0a2f6b;animation:boot-fade-up .6s cubic-bezier(.22,1,.36,1) .08s both}
+      .boot-splash__title span{color:#1976d2}
+      .boot-splash__subtitle{margin:.35rem 0 0;font-size:.84rem;letter-spacing:.04em;color:#64748b;animation:boot-fade-up .6s cubic-bezier(.22,1,.36,1) .16s both}
+      .boot-splash__bar{width:9.5rem;height:3px;margin-top:1.15rem;border-radius:999px;background:#e2e8f0;overflow:hidden;animation:boot-fade-up .6s cubic-bezier(.22,1,.36,1) .24s both}
+      .boot-splash__bar span{display:block;height:100%;width:42%;border-radius:999px;background:linear-gradient(90deg,#0a2f6b,#1976d2);animation:boot-bar-slide 1.15s ease-in-out infinite}
+      @keyframes boot-bar-slide{0%{transform:translateX(-120%)}100%{transform:translateX(280%)}}
+      @keyframes boot-logo-in{from{opacity:0;transform:translateY(10px) scale(.92)}to{opacity:1;transform:none}}
+      @keyframes boot-fade-up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+      @keyframes boot-glow{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.08);opacity:1}}
     </style>
   </head>
   <body>
     <div id="boot-splash" class="boot-splash" aria-live="polite" aria-busy="true">
+      <div class="boot-splash__glow" aria-hidden="true"></div>
       <div class="boot-splash__inner">
-        <div class="boot-splash__logo" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 3v18M5 10h14M7 6h10M9 14h6" />
-          </svg>
+        <div class="boot-splash__logo">
+          <img src="/logo.png" alt="LawApp50" />
         </div>
-        <p class="boot-splash__title">LawApp</p>
+        <p class="boot-splash__title">LawApp<span>50</span></p>
         <p class="boot-splash__subtitle">Chargement de votre espace…</p>
         <div class="boot-splash__bar" aria-hidden="true"><span></span></div>
       </div>
     </div>
+    <noscript>
+      <h1>LawApp50 — créer des évaluations en ligne</h1>
+      <p>LawApp50 permet aux enseignants de créer des QCM, des devoirs et des interrogations, de partager un code, puis de suivre les résultats. Droit Ludique propose des capsules courtes pour comprendre le droit.</p>
+      <p><a href="/register">Créer un compte</a> · <a href="/discover">Droit Ludique</a> · <a href="/documents">Bibliothèque</a> · <a href="/login">Connexion</a></p>
+    </noscript>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

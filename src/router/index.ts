@@ -5,12 +5,15 @@ import type { UserRole } from '@/types/auth'
 import { INTENDED_ROLE_KEY, LAST_ACTIVE_ROLE_KEY } from '@/config/features'
 import { readPendingRegistrationRole } from '@/utils/verificationSession'
 import { hasInstitutionAccess } from '@/utils/platformAccess'
+import { applyRouteSeo } from '@/seo/routeSeo'
+import type { PageSeo } from '@/seo/site'
 
 declare module 'vue-router' {
   interface RouteMeta {
     guest?: boolean
     requiresAuth?: boolean
     role?: UserRole
+    seo?: PageSeo
     /** Accès réservé aux comptes certifiés (super admin plateforme). */
     requiresCertified?: boolean
     /** Rôle au sein d’un établissement partenaire (dashboard /institution). */
@@ -30,24 +33,54 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: () => import('@/views/HomeView.vue'),
+      meta: {
+        seo: {
+          title: 'LawApp50 | Créer des évaluations en ligne',
+          description:
+            'Créez des évaluations en ligne avec LawApp50 : QCM, devoirs, chrono et anti-triche. Partagez un code, suivez les résultats. Inscription enseignant gratuite.',
+        },
+      },
     },
     {
       path: '/discover',
       name: 'discover',
       component: () => import('@/views/discover/DiscoverView.vue'),
-      meta: { hideLayout: true },
+      meta: {
+        hideLayout: true,
+        seo: {
+          title: 'Droit Ludique | LawApp50',
+          description:
+            'Droit Ludique sur LawApp50 : capsules juridiques courtes et quiz pour comprendre le droit, du lycée à la pratique.',
+        },
+      },
     },
     {
       path: '/login',
       name: 'login',
       component: () => import('@/views/auth/LoginView.vue'),
-      meta: { guest: true, hideLayout: true },
+      meta: {
+        guest: true,
+        hideLayout: true,
+        seo: {
+          title: 'Connexion LawApp50 | Espace enseignant et étudiant',
+          description:
+            'Connectez-vous à LawApp50 pour ouvrir votre espace enseignant ou étudiant et retrouver vos évaluations.',
+        },
+      },
     },
     {
       path: '/register',
       name: 'register',
       component: () => import('@/views/auth/RegisterView.vue'),
-      meta: { guest: true, hideLayout: true },
+      meta: {
+        guest: true,
+        hideLayout: true,
+        seo: {
+          title: 'Créer un compte pour vos évaluations | LawApp50',
+          description:
+            'Ouvrez un compte LawApp50 pour créer des évaluations, partager un code et suivre les passages de vos étudiants.',
+        },
+      },
     },
     {
       path: '/verify-email',
@@ -111,7 +144,14 @@ const router = createRouter({
       path: '/quiz',
       name: 'quiz-list',
       component: () => import('@/views/quiz/QuizListView.vue'),
-      meta: { hideLayout: true },
+      meta: {
+        hideLayout: true,
+        seo: {
+          title: 'Quiz de droit | LawApp50',
+          description:
+            'Quiz LawApp50 : entraînez-vous avec des questions courtes, dans le prolongement de Droit Ludique.',
+        },
+      },
     },
     {
       path: '/quiz/create',
@@ -133,7 +173,14 @@ const router = createRouter({
       path: '/documents',
       name: 'documents',
       component: () => import('@/views/documents/DocumentListView.vue'),
-      meta: { hideLayout: true },
+      meta: {
+        hideLayout: true,
+        seo: {
+          title: 'Bibliothèque | LawApp50',
+          description:
+            'Bibliothèque LawApp50 : documents et ressources pour préparer et accompagner vos évaluations.',
+        },
+      },
     },
     {
       path: '/documents/create',
@@ -434,6 +481,7 @@ router.beforeEach((to, from) => {
 })
 
 router.afterEach((to) => {
+  applyRouteSeo(to)
   useUiStore().finishRouteLoading()
   const auth = useAuthStore()
   if (to.path.startsWith('/teacher')) {
