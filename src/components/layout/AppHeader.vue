@@ -1,20 +1,41 @@
 <script setup lang="ts">
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { Scale, Menu, X, LogOut, ChevronDown } from '@lucide/vue'
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import {
+  Menu,
+  X,
+  LogOut,
+  ChevronDown,
+  LogIn,
+  UserPlus,
+  House,
+  Scale,
+  Library,
+  LayoutDashboard,
+  History,
+  Plus,
+  Shield,
+  UserRound,
+} from '@lucide/vue'
+import { AnimatePresence, motion } from 'motion-v'
+import gsap from 'gsap'
+import AppLogo from '@/components/brand/AppLogo.vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { getInitials } from '@/utils/auth'
 import { ROLE_LABELS } from '@/types/auth'
-import AppButton from '@/components/ui/AppButton.vue'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 
-const mobileOpen = ref(false)
+const menuOpen = ref(false)
 const userMenuOpen = ref(false)
 const scrolled = ref(false)
 const menuRef = ref<HTMLElement | null>(null)
+const headerRef = ref<HTMLElement | null>(null)
+const closeBtnRef = ref<HTMLButtonElement | null>(null)
+
+let motionCtx: gsap.Context | null = null
 
 const initials = computed(() => {
   if (!auth.currentUser) return ''
@@ -23,10 +44,89 @@ const initials = computed(() => {
 
 const dashboardLink = computed(() => auth.homePath())
 
-const publicNav = [
+const galaxyLinks = [
+  { to: '/', label: 'LawApp50', match: (p: string) => p === '/' },
   { to: '/discover', label: 'Droit Ludique', match: (p: string) => p.startsWith('/discover') },
   { to: '/documents', label: 'Bibliothèque', match: (p: string) => p.startsWith('/documents') },
 ]
+
+const quickLinks = computed(() => {
+  const items: { to: string; label: string; match: (p: string) => boolean }[] = [
+    { to: '/', label: 'Accueil', match: (p) => p === '/' },
+    { to: '/discover', label: 'Droit Ludique', match: (p) => p.startsWith('/discover') },
+    { to: '/documents', label: 'Bibliothèque', match: (p) => p.startsWith('/documents') },
+  ]
+
+  if (auth.isCertified) {
+    items.push({ to: '/admin', label: 'Admin', match: (p) => p.startsWith('/admin') })
+  }
+  if (auth.isAuthenticated) {
+    items.push({
+      to: dashboardLink.value,
+      label: 'Mon espace',
+      match: (p) => p.startsWith('/teacher') || p.startsWith('/student'),
+    })
+  }
+  if (auth.isStudent) {
+    items.push({
+      to: '/student/history',
+      label: 'Mon historique',
+      match: (p) => p.startsWith('/student/history'),
+    })
+  }
+  if (auth.isTeacher) {
+    items.push({
+      to: '/teacher/history',
+      label: 'Suivi & historique',
+      match: (p) => p.startsWith('/teacher/history'),
+    })
+    items.push({
+      to: '/teacher/create',
+      label: 'Nouvelle évaluation',
+      match: (p) => p.startsWith('/teacher/create'),
+    })
+  }
+
+  return items
+})
+
+const menuGroups = computed(() => {
+  const platform = [
+    { to: '/', label: 'Accueil', icon: House },
+    { to: '/discover', label: 'Droit Ludique', icon: Scale },
+    { to: '/documents', label: 'Bibliothèque', icon: Library },
+  ]
+
+  const account: { to: string; label: string; icon: typeof House; danger?: boolean }[] = []
+
+  if (auth.isCertified) {
+    account.push({ to: '/admin', label: 'Admin', icon: Shield })
+  }
+  if (auth.isAuthenticated) {
+    account.push({
+      to: dashboardLink.value,
+      label: auth.isTeacher ? 'Espace enseignant' : auth.isStudent ? 'Mon espace étudiant' : 'Tableau de bord',
+      icon: LayoutDashboard,
+    })
+    if (auth.isStudent) {
+      account.push({ to: '/student/history', label: 'Mon historique', icon: History })
+      account.push({ to: '/join/group', label: 'Rejoindre une évaluation', icon: Plus })
+    }
+    if (auth.isTeacher) {
+      account.push({ to: '/teacher/history', label: 'Suivi & historique', icon: History })
+      account.push({ to: '/teacher/create', label: 'Nouvelle évaluation', icon: Plus })
+    }
+    account.push({ to: '/account', label: 'Mon compte', icon: UserRound })
+  } else {
+    account.push({ to: '/login', label: 'Connexion', icon: LogIn })
+    account.push({ to: '/register', label: "S'inscrire", icon: UserPlus })
+  }
+
+  return [
+    { title: 'Plateforme', items: platform },
+    { title: 'Compte', items: account },
+  ]
+})
 
 function isNavActive(match: (p: string) => boolean) {
   return match(route.path)
@@ -34,11 +134,12 @@ function isNavActive(match: (p: string) => boolean) {
 
 function logout() {
   auth.logout()
+  closeMenus()
   router.push('/login')
 }
 
 function closeMenus() {
-  mobileOpen.value = false
+  menuOpen.value = false
   userMenuOpen.value = false
 }
 
@@ -49,299 +150,257 @@ function onClickOutside(e: MouseEvent) {
 }
 
 function onScroll() {
-  scrolled.value = window.scrollY > 10
+  scrolled.value = window.scrollY > 8
 }
 
-watch(mobileOpen, (open) => {
+function onKey(e: KeyboardEvent) {
+  if (e.key === 'Escape') closeMenus()
+}
+
+watch(menuOpen, async (open) => {
   document.body.style.overflow = open ? 'hidden' : ''
+  if (open) {
+    userMenuOpen.value = false
+    await nextTick()
+    closeBtnRef.value?.focus()
+  }
 })
 
 onMounted(() => {
   document.addEventListener('click', onClickOutside)
+  document.addEventListener('keydown', onKey)
   window.addEventListener('scroll', onScroll, { passive: true })
   onScroll()
+
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (!reduce && headerRef.value) {
+    motionCtx = gsap.context(() => {
+      gsap.from('.app-header__galaxy', {
+        yPercent: -100,
+        duration: 0.45,
+        ease: 'power3.out',
+      })
+      gsap.from('.app-header__main', {
+        y: -14,
+        opacity: 0,
+        duration: 0.5,
+        delay: 0.1,
+        ease: 'power3.out',
+      })
+      gsap.from('.app-header__quick-link', {
+        y: 8,
+        opacity: 0,
+        duration: 0.35,
+        stagger: 0.045,
+        delay: 0.22,
+        ease: 'power2.out',
+      })
+    }, headerRef.value)
+  }
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', onClickOutside)
+  document.removeEventListener('keydown', onKey)
   window.removeEventListener('scroll', onScroll)
   document.body.style.overflow = ''
+  motionCtx?.revert()
 })
 </script>
 
 <template>
-  <header class="app-header" :class="{ 'app-header--scrolled': scrolled }">
-    <div class="app-header__inner">
-      <div class="app-header__bar">
-        <RouterLink to="/" class="app-header__brand" @click="closeMenus">
-          <span class="app-header__brand-mark">
-            <Scale class="w-4 h-4" />
-          </span>
-          <span class="app-header__brand-text">
-            <span class="app-header__brand-title">LawApp</span>
-            <span class="app-header__brand-sub">Évaluation &amp; droit</span>
-          </span>
+  <header ref="headerRef" class="app-header" :class="{ 'app-header--scrolled': scrolled }">
+    <div class="app-header__galaxy">
+      <nav class="app-header__galaxy-nav" aria-label="Raccourcis LawApp50">
+        <RouterLink
+          v-for="item in galaxyLinks"
+          :key="item.to"
+          :to="item.to"
+          class="app-header__galaxy-link"
+          :class="{ 'app-header__galaxy-link--active': isNavActive(item.match) }"
+          @click="closeMenus"
+        >
+          <img
+            v-if="item.to === '/'"
+            src="/logo.png"
+            alt=""
+            class="app-header__galaxy-mark"
+            width="18"
+            height="18"
+          />
+          {{ item.label }}
+        </RouterLink>
+      </nav>
+    </div>
+
+    <div class="app-header__main">
+      <div class="app-header__start">
+        <button
+          type="button"
+          class="app-header__burger"
+          :aria-expanded="menuOpen"
+          aria-controls="app-header-menu"
+          aria-label="Menu"
+          @click="menuOpen = !menuOpen"
+        >
+          <Menu class="app-header__icon" />
+        </button>
+
+        <RouterLink to="/" class="app-header__brand" aria-label="LawApp50, accueil" @click="closeMenus">
+          <AppLogo size="sm" caption="Évaluation & Formation" />
         </RouterLink>
 
-        <nav class="app-header__nav" aria-label="Navigation principale">
+        <nav class="app-header__quick" aria-label="Navigation principale">
           <RouterLink
-            v-for="item in publicNav"
-            :key="item.to"
+            v-for="item in quickLinks"
+            :key="item.to + item.label"
             :to="item.to"
-            class="app-header__link"
-            :class="{ 'app-header__link--active': isNavActive(item.match) }"
+            class="app-header__quick-link"
+            :class="{ 'app-header__quick-link--active': isNavActive(item.match) }"
+            @click="closeMenus"
           >
             {{ item.label }}
           </RouterLink>
-
-          <RouterLink
-            v-if="auth.isCertified"
-            to="/admin"
-            class="app-header__link"
-            :class="{ 'app-header__link--active': route.path.startsWith('/admin') }"
-          >
-            Admin
-          </RouterLink>
-
-          <RouterLink
-            v-if="auth.isAuthenticated"
-            :to="dashboardLink"
-            class="app-header__link"
-            :class="{
-              'app-header__link--active':
-                route.path.startsWith('/teacher') || route.path.startsWith('/student'),
-            }"
-          >
-            Mon espace
-          </RouterLink>
-
-          <RouterLink
-            v-if="auth.isStudent"
-            to="/student/history"
-            class="app-header__link"
-            :class="{ 'app-header__link--active': route.path.startsWith('/student/history') }"
-          >
-            Mon historique
-          </RouterLink>
-
-          <RouterLink
-            v-if="auth.isTeacher"
-            to="/teacher/history"
-            class="app-header__link"
-            :class="{ 'app-header__link--active': route.path.startsWith('/teacher/history') }"
-          >
-            Suivi &amp; historique
-          </RouterLink>
-
-          <RouterLink
-            v-if="auth.isTeacher"
-            to="/teacher/create"
-            class="app-header__link"
-            :class="{ 'app-header__link--active': route.path.startsWith('/teacher/create') }"
-          >
-            Nouvelle évaluation
-          </RouterLink>
-
-          <div class="app-header__actions">
-            <template v-if="auth.isAuthenticated">
-              <div ref="menuRef" class="relative">
-                <button
-                  type="button"
-                  class="app-header__user-btn"
-                  :aria-expanded="userMenuOpen"
-                  aria-haspopup="menu"
-                  @click.stop="userMenuOpen = !userMenuOpen"
-                >
-                  <span class="app-header__avatar">{{ initials }}</span>
-                  <span class="text-sm text-ink max-w-[7rem] truncate hidden lg:block">
-                    {{ auth.currentUser?.firstName }}
-                  </span>
-                  <ChevronDown class="w-4 h-4 text-ink-faint hidden sm:block" />
-                </button>
-
-                <div v-if="userMenuOpen" class="app-header__dropdown" role="menu">
-                  <div class="app-header__dropdown-head">
-                    <p class="text-sm font-medium text-ink truncate">
-                      {{ auth.currentUser?.firstName }} {{ auth.currentUser?.lastName }}
-                    </p>
-                    <p class="text-xs text-ink-faint truncate mt-0.5">{{ auth.currentUser?.email }}</p>
-                    <p class="text-[10px] uppercase tracking-widest text-accent mt-1.5">
-                      {{ auth.currentUser ? ROLE_LABELS[auth.currentUser.role] : '' }}
-                    </p>
-                  </div>
-                  <RouterLink
-                    :to="dashboardLink"
-                    class="app-header__dropdown-item"
-                    role="menuitem"
-                    @click="userMenuOpen = false"
-                  >
-                    Tableau de bord
-                  </RouterLink>
-                  <RouterLink
-                    to="/account"
-                    class="app-header__dropdown-item"
-                    role="menuitem"
-                    @click="userMenuOpen = false"
-                  >
-                    Mon compte
-                  </RouterLink>
-                  <button
-                    type="button"
-                    class="app-header__dropdown-item app-header__dropdown-item--danger"
-                    role="menuitem"
-                    @click="logout"
-                  >
-                    <LogOut class="w-4 h-4" />
-                    Déconnexion
-                  </button>
-                </div>
-              </div>
-            </template>
-
-            <template v-else>
-              <RouterLink to="/login" class="app-header__link"> Connexion </RouterLink>
-              <RouterLink to="/register">
-                <AppButton size="sm">S'inscrire</AppButton>
-              </RouterLink>
-            </template>
-          </div>
         </nav>
-
-        <button
-          type="button"
-          class="app-header__menu-btn md:hidden"
-          :aria-expanded="mobileOpen"
-          aria-label="Menu"
-          @click="mobileOpen = !mobileOpen"
-        >
-          <X v-if="mobileOpen" class="w-5 h-5" />
-          <Menu v-else class="w-5 h-5" />
-        </button>
       </div>
-    </div>
 
-    <Teleport to="body">
-      <Transition name="app-header-drawer">
-        <div v-if="mobileOpen" class="app-header__drawer-backdrop md:hidden" @click="closeMenus">
-          <div class="app-header__drawer-panel" @click.stop>
-            <div class="flex items-center justify-between px-4 h-14 border-b border-line">
-              <span class="text-sm font-semibold text-ink">Menu</span>
+      <div class="app-header__end">
+        <template v-if="auth.isAuthenticated">
+          <div ref="menuRef" class="app-header__user">
+            <button
+              type="button"
+              class="app-header__user-btn"
+              :aria-expanded="userMenuOpen"
+              aria-haspopup="menu"
+              @click.stop="userMenuOpen = !userMenuOpen"
+            >
+              <span class="app-header__avatar">{{ initials }}</span>
+              <span class="app-header__user-name">{{ auth.currentUser?.firstName }}</span>
+              <ChevronDown class="app-header__icon app-header__icon--sm" />
+            </button>
+
+            <div v-if="userMenuOpen" class="app-header__dropdown" role="menu">
+              <div class="app-header__dropdown-head">
+                <p class="text-sm font-medium text-ink truncate">
+                  {{ auth.currentUser?.firstName }} {{ auth.currentUser?.lastName }}
+                </p>
+                <p class="text-xs text-ink-faint truncate mt-0.5">{{ auth.currentUser?.email }}</p>
+                <p class="text-[10px] uppercase tracking-widest text-accent mt-1.5">
+                  {{ auth.currentUser ? ROLE_LABELS[auth.currentUser.role] : '' }}
+                </p>
+              </div>
+              <RouterLink
+                :to="dashboardLink"
+                class="app-header__dropdown-item"
+                role="menuitem"
+                @click="userMenuOpen = false"
+              >
+                <LayoutDashboard class="app-header__icon app-header__icon--sm" />
+                Tableau de bord
+              </RouterLink>
+              <RouterLink
+                to="/account"
+                class="app-header__dropdown-item"
+                role="menuitem"
+                @click="userMenuOpen = false"
+              >
+                <UserRound class="app-header__icon app-header__icon--sm" />
+                Mon compte
+              </RouterLink>
               <button
                 type="button"
-                class="app-header__menu-btn"
-                aria-label="Fermer"
-                @click="closeMenus"
+                class="app-header__dropdown-item app-header__dropdown-item--danger"
+                role="menuitem"
+                @click="logout"
               >
-                <X class="w-5 h-5" />
+                <LogOut class="app-header__icon app-header__icon--sm" />
+                Déconnexion
               </button>
             </div>
+          </div>
+        </template>
 
-            <nav class="flex-1 overflow-y-auto px-4 py-3 space-y-1">
-              <RouterLink
-                v-for="item in publicNav"
-                :key="item.to"
-                :to="item.to"
-                class="app-header__dropdown-item rounded-md"
-                @click="closeMenus"
-              >
+        <template v-else>
+          <RouterLink to="/login" class="app-header__tool" @click="closeMenus">
+            <LogIn class="app-header__icon app-header__icon--sm" />
+            <span>Connexion</span>
+          </RouterLink>
+          <RouterLink to="/register" class="app-header__tool app-header__tool--solid" @click="closeMenus">
+            <UserPlus class="app-header__icon app-header__icon--sm" />
+            <span>S'inscrire</span>
+          </RouterLink>
+        </template>
+      </div>
+    </div>
+  </header>
+
+  <Teleport to="body">
+    <AnimatePresence>
+      <motion.div
+        v-if="menuOpen"
+        key="overlay"
+        class="app-header__overlay"
+        :initial="{ opacity: 0 }"
+        :animate="{ opacity: 1 }"
+        :exit="{ opacity: 0 }"
+        :transition="{ duration: 0.22 }"
+        @click="closeMenus"
+      />
+      <motion.div
+        v-if="menuOpen"
+        id="app-header-menu"
+        key="panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Menu"
+        class="app-header__panel"
+        :initial="{ x: -380 }"
+        :animate="{ x: 0 }"
+        :exit="{ x: -380 }"
+        :transition="{ type: 'spring', stiffness: 420, damping: 38 }"
+      >
+        <div class="app-header__panel-head">
+          <AppLogo size="sm" caption="Évaluation & Formation" />
+          <button
+            ref="closeBtnRef"
+            type="button"
+            class="app-header__burger"
+            aria-label="Fermer"
+            @click="closeMenus"
+          >
+            <X class="app-header__icon" />
+          </button>
+        </div>
+
+        <nav class="app-header__panel-nav">
+          <section v-for="group in menuGroups" :key="group.title" class="app-header__panel-group">
+            <p class="app-header__panel-label">{{ group.title }}</p>
+            <motion.div
+              v-for="(item, index) in group.items"
+              :key="item.to + item.label"
+              :initial="{ opacity: 0, x: -16 }"
+              :animate="{ opacity: 1, x: 0 }"
+              :transition="{ duration: 0.28, delay: 0.06 + index * 0.04 }"
+            >
+              <RouterLink :to="item.to" class="app-header__panel-link" @click="closeMenus">
+                <component :is="item.icon" class="app-header__icon app-header__icon--sm" />
                 {{ item.label }}
               </RouterLink>
-
-              <RouterLink
-                v-if="auth.isCertified"
-                to="/admin"
-                class="app-header__dropdown-item rounded-md"
-                @click="closeMenus"
-              >
-                Admin
-              </RouterLink>
-
-              <template v-if="auth.isAuthenticated">
-                <RouterLink
-                  v-if="auth.isStudent"
-                  to="/student"
-                  class="app-header__dropdown-item rounded-md"
-                  @click="closeMenus"
-                >
-                  Mon espace étudiant
-                </RouterLink>
-                <RouterLink
-                  v-if="auth.isStudent"
-                  to="/student/history"
-                  class="app-header__dropdown-item rounded-md"
-                  @click="closeMenus"
-                >
-                  Mon historique
-                </RouterLink>
-                <RouterLink
-                  v-if="auth.isStudent"
-                  to="/join/group"
-                  class="app-header__dropdown-item rounded-md"
-                  @click="closeMenus"
-                >
-                  Rejoindre une évaluation
-                </RouterLink>
-                <RouterLink
-                  :to="dashboardLink"
-                  class="app-header__dropdown-item rounded-md"
-                  @click="closeMenus"
-                >
-                  {{ auth.isTeacher ? 'Espace enseignant' : 'Tableau de bord' }}
-                </RouterLink>
-                <RouterLink
-                  v-if="auth.isTeacher"
-                  to="/teacher/history"
-                  class="app-header__dropdown-item rounded-md"
-                  @click="closeMenus"
-                >
-                  Suivi &amp; historique
-                </RouterLink>
-                <RouterLink
-                  v-if="auth.isTeacher"
-                  to="/teacher/create"
-                  class="app-header__dropdown-item rounded-md"
-                  @click="closeMenus"
-                >
-                  Nouvelle évaluation
-                </RouterLink>
-                <RouterLink
-                  to="/account"
-                  class="app-header__dropdown-item rounded-md"
-                  @click="closeMenus"
-                >
-                  Mon compte
-                </RouterLink>
-                <button
-                  type="button"
-                  class="app-header__dropdown-item app-header__dropdown-item--danger rounded-md"
-                  @click="logout(); closeMenus()"
-                >
-                  Déconnexion
-                </button>
-              </template>
-
-              <template v-else>
-                <RouterLink
-                  to="/login"
-                  class="app-header__dropdown-item rounded-md"
-                  @click="closeMenus"
-                >
-                  Connexion
-                </RouterLink>
-                <RouterLink
-                  to="/register"
-                  class="app-header__dropdown-item rounded-md text-accent font-medium"
-                  @click="closeMenus"
-                >
-                  S'inscrire
-                </RouterLink>
-              </template>
-            </nav>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-  </header>
+            </motion.div>
+            <button
+              v-if="group.title === 'Compte' && auth.isAuthenticated"
+              type="button"
+              class="app-header__panel-link app-header__panel-link--danger"
+              @click="logout"
+            >
+              <LogOut class="app-header__icon app-header__icon--sm" />
+              Déconnexion
+            </button>
+          </section>
+        </nav>
+      </motion.div>
+    </AnimatePresence>
+  </Teleport>
 </template>
 
 <style src="@/components/layout/app-header.css"></style>
