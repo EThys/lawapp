@@ -116,9 +116,17 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
         <Menu v-else class="w-5 h-5" />
       </button>
 
+      <RouterLink
+        :to="isAdmin ? '/admin' : '/teacher'"
+        class="shell-navbar__logo-link"
+        aria-label="LawApp50"
+      >
+        <img src="/logo.png" alt="" class="shell-navbar__logo" width="584" height="640" />
+      </RouterLink>
+
       <div class="shell-navbar__titles min-w-0">
         <p class="shell-navbar__eyebrow">
-          {{ isAdmin ? 'LawApp · Administration' : 'LawApp · Enseignant' }}
+          {{ isAdmin ? 'LawApp50 · Administration' : 'LawApp50 · Enseignant' }}
         </p>
         <h1 class="shell-navbar__title truncate">{{ pageTitle }}</h1>
       </div>

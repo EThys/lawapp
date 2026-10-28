@@ -6,8 +6,6 @@ import { buildTeacherMenuItems, type TeacherMenuItem } from './nav'
 import { buildAdminMenuItems, type AdminMenuItem } from '@/packages/admin-shell/nav'
 import { getInitials } from '@/utils/auth'
 import {
-  GraduationCap,
-  Shield,
   ClipboardList,
   ChevronDown,
   LogOut,
@@ -125,11 +123,10 @@ function logout() {
         @click="emit('closeMobile')"
       >
         <span class="shell-sidebar__brand-mark">
-          <Shield v-if="isAdmin" class="w-5 h-5" />
-          <GraduationCap v-else class="w-5 h-5" />
+          <img src="/logo.png" alt="" width="584" height="640" />
         </span>
         <span class="shell-sidebar__brand-text">
-          <span class="shell-sidebar__brand-title">LawApp</span>
+          <span class="shell-sidebar__brand-title">LawApp50</span>
           <span class="shell-sidebar__brand-sub">{{ isAdmin ? 'Admin' : 'Enseignant' }}</span>
         </span>
       </RouterLink>

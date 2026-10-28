@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
-import { Scale } from '@lucide/vue'
+import AppLogo from '@/components/brand/AppLogo.vue'
 import AppDecorativeBg from '@/components/ui/AppDecorativeBg.vue'
 </script>
 
@@ -11,11 +11,8 @@ import AppDecorativeBg from '@/components/ui/AppDecorativeBg.vue'
       <div class="absolute inset-0 auth-grid-bg opacity-[0.07]" />
 
       <div class="relative">
-        <RouterLink to="/" class="inline-flex items-center gap-3 group">
-          <div class="w-10 h-10 border border-white/20 flex items-center justify-center">
-            <Scale class="w-5 h-5 text-white/90" />
-          </div>
-          <span class="text-lg font-semibold tracking-tight">LawApp</span>
+        <RouterLink to="/" class="inline-flex" aria-label="LawApp50, accueil">
+          <AppLogo tone="on-dark" size="md" caption="Évaluation & Formation" />
         </RouterLink>
       </div>
 
@@ -41,11 +38,8 @@ import AppDecorativeBg from '@/components/ui/AppDecorativeBg.vue'
     <!-- Right panel: form -->
     <main class="flex-1 flex flex-col min-h-app min-w-0 bg-paper pt-safe">
       <div class="lg:hidden flex items-center justify-between px-4 sm:px-6 py-4 border-b border-line bg-white px-safe">
-        <RouterLink to="/" class="inline-flex items-center gap-2.5">
-          <div class="w-8 h-8 bg-accent flex items-center justify-center">
-            <Scale class="w-4 h-4 text-white" />
-          </div>
-          <span class="font-semibold text-ink">LawApp</span>
+        <RouterLink to="/" class="inline-flex" aria-label="LawApp50, accueil">
+          <AppLogo size="sm" caption="Évaluation & Formation" />
         </RouterLink>
       </div>
 
@@ -58,7 +52,7 @@ import AppDecorativeBg from '@/components/ui/AppDecorativeBg.vue'
       </div>
 
       <footer class="px-4 sm:px-6 py-4 pb-safe border-t border-line text-center text-xs text-ink-faint px-safe shrink-0">
-        © {{ new Date().getFullYear() }} LawApp · Plateforme d'évaluation
+        © {{ new Date().getFullYear() }} LawApp50 · Plateforme d'évaluation
       </footer>
     </main>
   </div>

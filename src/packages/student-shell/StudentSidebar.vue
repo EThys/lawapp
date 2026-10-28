@@ -6,7 +6,6 @@ import { buildStudentMenuItems } from './nav'
 import { getInitials } from '@/utils/auth'
 import {
   BookOpen,
-  GraduationCap,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
@@ -70,14 +69,14 @@ function logout() {
         to="/"
         class="shell-sidebar__brand"
         title="Retour au site public"
-        aria-label="LawApp, retour au site public"
+        aria-label="LawApp50, retour au site public"
         @click="emit('closeMobile')"
       >
         <span class="shell-sidebar__brand-mark">
-          <GraduationCap class="w-5 h-5" />
+          <img src="/logo.png" alt="" width="584" height="640" />
         </span>
         <span class="shell-sidebar__brand-text">
-          <span class="shell-sidebar__brand-title">LawApp</span>
+          <span class="shell-sidebar__brand-title">LawApp50</span>
           <span class="shell-sidebar__brand-sub">Étudiant</span>
         </span>
       </RouterLink>

@@ -754,6 +754,7 @@ const liveManualTotal = computed(() =>
   margin: 0.15rem 0;
   font-family: var(--font-display);
   font-size: 2rem;
+  font-weight: 700;
   line-height: 1;
   color: var(--color-ink);
 }

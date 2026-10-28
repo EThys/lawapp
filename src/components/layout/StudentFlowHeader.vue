@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
-import { Scale, ArrowLeft } from '@lucide/vue'
+import { ArrowLeft } from '@lucide/vue'
+import AppLogo from '@/components/brand/AppLogo.vue'
 </script>
 
 <template>
@@ -14,11 +15,8 @@ import { Scale, ArrowLeft } from '@lucide/vue'
         <span class="sr-only sm:not-sr-only sm:inline">Mon espace</span>
       </RouterLink>
 
-      <RouterLink to="/" class="flex items-center gap-2 group absolute left-1/2 -translate-x-1/2">
-        <div class="w-7 h-7 bg-accent flex items-center justify-center">
-          <Scale class="w-3.5 h-3.5 text-white" />
-        </div>
-        <span class="text-sm font-semibold text-ink tracking-tight hidden sm:inline">LawApp</span>
+      <RouterLink to="/" class="absolute left-1/2 -translate-x-1/2" aria-label="LawApp50, accueil">
+        <AppLogo size="sm" class="max-sm:[&_.app-logo__text]:hidden" />
       </RouterLink>
 
       <div class="w-11" aria-hidden="true" />

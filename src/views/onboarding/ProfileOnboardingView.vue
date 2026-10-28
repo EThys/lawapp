@@ -172,6 +172,7 @@ function skipForNow() {
 .onboarding-pick__title {
   font-family: var(--font-display);
   font-size: 1.05rem;
+  font-weight: 700;
   color: var(--color-ink);
 }
 

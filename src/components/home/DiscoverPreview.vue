@@ -382,6 +382,7 @@ const slides = LEGAL_FEED.slice(0, 5).map((item, i) => ({
 .phone-reel__title {
   font-family: var(--font-display);
   font-size: 1.2rem;
+  font-weight: 700;
   line-height: 1.2;
   color: white;
   text-shadow: 0 2px 12px rgb(0 0 0 / 0.4);

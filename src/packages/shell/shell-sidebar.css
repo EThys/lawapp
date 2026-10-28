@@ -55,12 +55,20 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.35rem;
-  height: 2.35rem;
-  border-radius: 0.55rem;
-  background: rgb(255 255 255 / 0.14);
-  border: 1px solid rgb(255 255 255 / 0.12);
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.7rem;
+  background: white;
+  border: 1px solid rgb(255 255 255 / 0.7);
+  box-shadow: 0 8px 18px rgb(0 0 0 / 0.16);
   flex-shrink: 0;
+}
+
+.shell-sidebar__brand-mark img {
+  width: 1.85rem;
+  height: 1.85rem;
+  object-fit: contain;
+  display: block;
 }
 
 .shell-sidebar__brand-text {
@@ -76,6 +84,7 @@
   font-family: var(--font-display);
   font-size: 1.05rem;
   font-weight: 600;
+  letter-spacing: -0.03em;
 }
 
 .shell-sidebar__brand-sub {
