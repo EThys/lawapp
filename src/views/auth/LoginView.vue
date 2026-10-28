@@ -7,7 +7,6 @@ import AuthLayout from '@/components/layout/AuthLayout.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import { isApiEnabled } from '@/config/features'
-import { redirectToGoogleAuth } from '@/api/auth'
 import { dismissKeyboard, missingFieldsMessage } from '@/utils/form'
 import { AlertCircle } from '@lucide/vue'
 
@@ -116,16 +115,6 @@ async function handleLogin() {
       <AppButton type="submit" class="w-full" :loading="loading">
         Se connecter
       </AppButton>
-
-      <template v-if="isApiEnabled()">
-        <div class="relative py-2">
-          <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-line" /></div>
-          <div class="relative flex justify-center text-xs"><span class="bg-white px-2 text-ink-faint">ou</span></div>
-        </div>
-        <AppButton type="button" variant="outline" class="w-full" @click="redirectToGoogleAuth">
-          Continuer avec Google
-        </AppButton>
-      </template>
     </form>
 
     <p class="mt-8 text-center text-sm text-ink-muted">
