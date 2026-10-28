@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { VueTelInput } from 'vue-tel-input'
 import type { CountryObject, PhoneObject } from 'vue-tel-input'
 import 'vue-tel-input/vue-tel-input.css'
@@ -36,23 +36,39 @@ const dropdownOptions = {
   searchBoxPlaceholder: 'Pays ou indicatif…',
 }
 
-const inputOptions = computed(() => ({
+const inputOptions = {
   placeholder: '854434602',
-  required: props.required,
   autocomplete: 'tel-national',
   type: 'tel',
   inputmode: 'numeric' as const,
   showDialCode: false,
   styleClasses: 'app-phone-input__field',
-}))
+}
 
 function pushE164(nationalRaw: string, iso: string) {
-  const national = stripLeadingTrunkZero(nationalRaw)
-  displayPhone.value = national
+  const national = stripLeadingTrunkZero(nationalRaw.replace(/\D/g, ''))
   emit('update:modelValue', national ? phoneForApi(national, iso) : '')
 }
 
-function onInput(_number: string, phoneObject: PhoneObject) {
+/** Affiche un numéro déjà saisi (ex. retour arrière dans le stepper). */
+function syncDisplayFromModel(e164: string) {
+  if (!e164.trim()) {
+    displayPhone.value = ''
+    return
+  }
+  const digits = e164.replace(/\D/g, '')
+  let national = digits
+  if (national.startsWith(dialCode.value)) {
+    national = national.slice(dialCode.value.length)
+  }
+  displayPhone.value = stripLeadingTrunkZero(national)
+}
+
+onMounted(() => {
+  syncDisplayFromModel(props.modelValue)
+})
+
+function onInput(number: string, phoneObject: PhoneObject) {
   if (phoneObject.country?.iso2) {
     countryIso.value = phoneObject.country.iso2.toUpperCase()
   }
@@ -60,12 +76,20 @@ function onInput(_number: string, phoneObject: PhoneObject) {
     dialCode.value = phoneObject.country.dialCode
   }
 
-  let national = (phoneObject.nationalNumber || '').replace(/\D/g, '')
-  if (dialCode.value && national.startsWith(dialCode.value)) {
-    national = national.slice(dialCode.value.length)
+  // Le parseur ignore un chiffre isolé (ex. « 8 »). On garde la saisie brute,
+  // sinon le premier caractère est effacé puis le reste s’écrit d’un coup.
+  let digits = (number || '').replace(/\D/g, '')
+  if (dialCode.value && digits.startsWith(dialCode.value) && digits.length > dialCode.value.length) {
+    digits = digits.slice(dialCode.value.length)
   }
-  national = stripLeadingTrunkZero(national)
-  pushE164(national, countryIso.value)
+  if (digits.startsWith('0') && digits.length > 1) {
+    digits = stripLeadingTrunkZero(digits)
+  }
+
+  if (displayPhone.value !== digits) {
+    displayPhone.value = digits
+  }
+  pushE164(digits, countryIso.value)
 }
 
 function onCountryChanged(country: CountryObject) {
