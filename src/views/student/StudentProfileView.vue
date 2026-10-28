@@ -15,6 +15,7 @@ import SettingsGroup from '@/components/settings/SettingsGroup.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
+import AppChoicePills from '@/components/ui/AppChoicePills.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import StudentAcademicAffiliationCard from '@/components/institution/StudentAcademicAffiliationCard.vue'
 import { AlertCircle, BookOpen } from '@lucide/vue'
@@ -183,12 +184,14 @@ async function handleSubmit() {
             :options="etablissementOptions"
           />
           <AppInput v-model="matricule" label="Matricule" placeholder="N° étudiant (optionnel)" />
-          <AppSelect
-            v-model="gender"
-            label="Genre"
-            placeholder="Choisir (optionnel)"
-            :options="[...GENDER_OPTIONS]"
-          />
+          <div class="space-y-1.5">
+            <span class="block text-xs font-medium text-ink-muted uppercase tracking-wide">Genre</span>
+            <AppChoicePills
+              v-model="gender"
+              :options="[...GENDER_OPTIONS]"
+              :columns="3"
+            />
+          </div>
           <div v-if="success" class="p-3 bg-accent-light text-sm text-accent">{{ success }}</div>
           <div v-if="error" class="flex gap-2 p-3 bg-danger-bg text-sm text-danger">
             <AlertCircle class="w-4 h-4 shrink-0" /> {{ error }}

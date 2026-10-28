@@ -9,6 +9,8 @@ export interface PendingRegistrationRole {
   /** @deprecated préférer `roles` */
   role?: UserRole
   roles?: UserRole[]
+  /** Choix à l’inscription, repris à la création du profil métier. */
+  gender?: string
 }
 
 export interface PendingLoginCredentials {
@@ -81,18 +83,38 @@ function normalizeRegistrationRoles(parsed: PendingRegistrationRole): UserRole[]
 }
 
 /** Qualité(s) choisie(s) à l'inscription — jusqu'à création des profils métier. */
-export function persistRegistrationRoles(email: string, roles: UserRole[]) {
+export function persistRegistrationRoles(
+  email: string,
+  roles: UserRole[],
+  extra?: { gender?: string },
+) {
   const unique = [...new Set(roles.filter((r) => r === 'teacher' || r === 'student'))]
-  if (!unique.length) return
+  if (!unique.length && !extra?.gender?.trim()) return
   try {
     const payload: PendingRegistrationRole = {
       email: email.trim().toLowerCase(),
-      roles: unique,
+      roles: unique.length ? unique : undefined,
       role: unique.length === 1 ? unique[0] : undefined,
     }
+    const gender = extra?.gender?.trim()
+    if (gender) payload.gender = gender
     sessionStorage.setItem(REGISTRATION_ROLE_KEY, JSON.stringify(payload))
   } catch {
     // ignore
+  }
+}
+
+export function readPendingRegistrationGender(email?: string | null): string | null {
+  try {
+    const raw = sessionStorage.getItem(REGISTRATION_ROLE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as PendingRegistrationRole
+    const expected = email?.trim().toLowerCase()
+    if (expected && parsed.email !== expected) return null
+    const g = parsed.gender?.trim()
+    return g || null
+  } catch {
+    return null
   }
 }
 

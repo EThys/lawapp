@@ -1,9 +1,14 @@
 <script setup lang="ts">
 /** Boutons larges, tactiles — choix unique. */
-defineProps<{
-  modelValue: string
-  options: { value: string; label: string; hint?: string }[]
-}>()
+withDefaults(
+  defineProps<{
+    modelValue: string
+    options: { value: string; label: string; hint?: string }[]
+    /** 2 colonnes par défaut ; 3 pour genre (M / F / non précisé). */
+    columns?: 2 | 3
+  }>(),
+  { columns: 2 },
+)
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
@@ -11,7 +16,11 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup">
+  <div
+    class="grid grid-cols-1 gap-2"
+    :class="columns === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'"
+    role="radiogroup"
+  >
     <button
       v-for="opt in options"
       :key="opt.value"

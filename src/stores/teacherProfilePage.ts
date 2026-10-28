@@ -15,12 +15,10 @@ import {
 import { mergeTeacherRecords } from '@/utils/teacherProfileMerge'
 import { missingFieldsMessage } from '@/utils/form'
 import { appToast } from '@/utils/toast'
+import { GENDER_OPTIONS } from '@/constants/genderOptions'
+import { readPendingRegistrationGender } from '@/utils/verificationSession'
 
-export const GENDER_OPTIONS = [
-  { value: 'M', label: 'Masculin' },
-  { value: 'F', label: 'Féminin' },
-  { value: 'N/A', label: 'Non précisé' },
-] as const
+export { GENDER_OPTIONS }
 
 export const useTeacherProfilePageStore = defineStore('teacherProfilePage', () => {
   const ready = ref(!isApiEnabled())
@@ -79,6 +77,10 @@ export const useTeacherProfilePageStore = defineStore('teacherProfilePage', () =
     const auth = useAuthStore()
     const teacherStore = useTeacherStore()
     hydrateFromTeacher(auth.teacherProfile)
+    if (!gender.value.trim()) {
+      const pendingGender = readPendingRegistrationGender(auth.currentUser?.email)
+      if (pendingGender) gender.value = pendingGender
+    }
 
     if (!isApiEnabled()) {
       ready.value = true

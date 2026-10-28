@@ -15,6 +15,7 @@ import SettingsGroup from '@/components/settings/SettingsGroup.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
+import AppChoicePills from '@/components/ui/AppChoicePills.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import AppModal from '@/components/ui/AppModal.vue'
@@ -227,13 +228,16 @@ async function handleDeleteAccount() {
               à cet établissement dès la création du profil (optionnel).
             </span>
           </label>
-          <AppSelect
-            v-model="gender"
-            label="Genre"
-            required
-            placeholder="Choisir"
-            :options="[...GENDER_OPTIONS]"
-          />
+          <div class="space-y-1.5">
+            <span class="block text-xs font-medium text-ink-muted uppercase tracking-wide">
+              Genre <span class="text-danger normal-case">*</span>
+            </span>
+            <AppChoicePills
+              v-model="gender"
+              :options="[...GENDER_OPTIONS]"
+              :columns="3"
+            />
+          </div>
           <AppTextarea
             v-model="justificatif"
             label="Justificatif"

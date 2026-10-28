@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AuthLayout from '@/components/layout/AuthLayout.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
-const AppPhoneInput = defineAsyncComponent(() => import('@/components/ui/AppPhoneInput.vue'))
+import AppPhoneInput from '@/components/ui/AppPhoneInput.vue'
 import AppCombobox from '@/components/ui/AppCombobox.vue'
+import AppChoicePills from '@/components/ui/AppChoicePills.vue'
+import { GENDER_OPTIONS } from '@/constants/genderOptions'
 import AppStepper from '@/components/ui/AppStepper.vue'
 import { CITIES_CONGO, DEFAULT_CITY } from '@/data/cities'
 import { useVerificationStore } from '@/stores/verification'
@@ -41,6 +43,7 @@ const confirmPassword = ref('')
 const firstName = ref('')
 const lastName = ref('')
 const phoneE164 = ref('')
+const gender = ref('')
 const city = ref(DEFAULT_CITY)
 const error = ref('')
 const loading = ref(false)
@@ -129,8 +132,10 @@ async function handleRegister() {
   if (!validateStep()) return
   clearRoleIntent()
   clearProfileSnapshot()
-  if (intendedRoles.value.length) {
-    persistRegistrationRoles(email.value, intendedRoles.value)
+  if (intendedRoles.value.length || gender.value.trim()) {
+    persistRegistrationRoles(email.value, intendedRoles.value, {
+      gender: gender.value.trim() || undefined,
+    })
   }
   loading.value = true
 
@@ -191,6 +196,15 @@ async function handleRegister() {
           required
           default-country="CD"
         />
+        <div class="space-y-1.5">
+          <span class="block text-xs font-medium text-ink-muted uppercase tracking-wide">Genre</span>
+          <AppChoicePills
+            v-model="gender"
+            :options="[...GENDER_OPTIONS]"
+            :columns="3"
+          />
+          <p class="text-xs text-ink-faint m-0">Facultatif — repris lors de la création de votre profil.</p>
+        </div>
         <AppCombobox
           v-model="city"
           label="Ville"

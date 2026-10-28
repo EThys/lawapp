@@ -14,12 +14,10 @@ import {
   isEtablissementKeySelectable,
 } from '@/utils/referentielOptions'
 import { missingFieldsMessage } from '@/utils/form'
+import { GENDER_OPTIONS } from '@/constants/genderOptions'
+import { readPendingRegistrationGender } from '@/utils/verificationSession'
 
-export const GENDER_OPTIONS = [
-  { value: 'M', label: 'Masculin' },
-  { value: 'F', label: 'Féminin' },
-  { value: 'N/A', label: 'Non précisé' },
-] as const
+export { GENDER_OPTIONS }
 
 export const useStudentProfilePageStore = defineStore('studentProfilePage', () => {
   const ready = ref(!isApiEnabled())
@@ -116,6 +114,10 @@ export const useStudentProfilePageStore = defineStore('studentProfilePage', () =
       matricule.value = auth.currentUser.studentId
     }
     hydrateFromStudent(auth.studentProfile)
+    if (!gender.value.trim()) {
+      const pendingGender = readPendingRegistrationGender(auth.currentUser?.email)
+      if (pendingGender) gender.value = pendingGender
+    }
 
     if (!isApiEnabled()) {
       ready.value = true
