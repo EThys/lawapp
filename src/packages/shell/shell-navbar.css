@@ -110,17 +110,6 @@
   line-height: 1.25;
 }
 
-/* Hamburger : mobile / tablette uniquement (aligné shell-layout 1024px) */
-.shell-navbar__menu-btn {
-  display: inline-flex;
-}
-
-@media (min-width: 1024px) {
-  .shell-navbar__menu-btn {
-    display: none;
-  }
-}
-
 .shell-navbar__icon-btn {
   display: inline-flex;
   align-items: center;
@@ -134,6 +123,14 @@
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+/* Hamburger : téléphone / tablette uniquement — pas sur PC (sidebar visible).
+   Spécificité > .shell-navbar__icon-btn pour ne pas être écrasé. */
+@media (min-width: 1024px) {
+  .shell-navbar__icon-btn.shell-navbar__menu-btn {
+    display: none !important;
+  }
 }
 
 .shell-navbar__icon-btn:hover {

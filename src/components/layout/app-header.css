@@ -190,13 +190,17 @@
   gap: 0.4rem;
   min-height: 2.35rem;
   padding: 0 0.7rem;
+  border: 0;
   border-radius: 0.35rem;
+  background: transparent;
   color: #171717;
+  font: inherit;
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   text-decoration: none;
+  cursor: pointer;
 }
 
 .app-header__tool:hover {
@@ -317,6 +321,7 @@
   inset: 0;
   z-index: 70;
   background: rgb(0 0 0 / 0.25);
+  cursor: pointer;
 }
 
 .app-header__panel {
@@ -331,6 +336,35 @@
   background: white;
   box-shadow: 12px 0 40px rgb(15 23 42 / 0.12);
   padding-top: env(safe-area-inset-top);
+}
+
+/* Transitions Vue (évite les overlays motion-v bloqués en pointer-events) */
+.app-header-overlay-enter-active,
+.app-header-overlay-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.app-header-overlay-enter-from,
+.app-header-overlay-leave-to {
+  opacity: 0;
+}
+
+.app-header-overlay-leave-active {
+  pointer-events: none;
+}
+
+.app-header-panel-enter-active,
+.app-header-panel-leave-active {
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.app-header-panel-enter-from,
+.app-header-panel-leave-to {
+  transform: translate3d(-100%, 0, 0);
+}
+
+.app-header-panel-leave-active {
+  pointer-events: none;
 }
 
 .app-header__panel-head {

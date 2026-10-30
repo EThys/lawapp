@@ -9,14 +9,12 @@ import {
   UserPlus,
   House,
   Scale,
-  Library,
   LayoutDashboard,
   History,
   Plus,
   Shield,
   UserRound,
 } from '@lucide/vue'
-import { AnimatePresence, motion } from 'motion-v'
 import gsap from 'gsap'
 import AppLogo from '@/components/brand/AppLogo.vue'
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
@@ -47,14 +45,12 @@ const dashboardLink = computed(() => auth.homePath())
 const galaxyLinks = [
   { to: '/', label: 'LawApp50', match: (p: string) => p === '/' },
   { to: '/discover', label: 'Droit Ludique', match: (p: string) => p.startsWith('/discover') },
-  { to: '/documents', label: 'Bibliothèque', match: (p: string) => p.startsWith('/documents') },
 ]
 
 const quickLinks = computed(() => {
   const items: { to: string; label: string; match: (p: string) => boolean }[] = [
     { to: '/', label: 'Accueil', match: (p) => p === '/' },
     { to: '/discover', label: 'Droit Ludique', match: (p) => p.startsWith('/discover') },
-    { to: '/documents', label: 'Bibliothèque', match: (p) => p.startsWith('/documents') },
   ]
 
   if (auth.isCertified) {
@@ -94,7 +90,6 @@ const menuGroups = computed(() => {
   const platform = [
     { to: '/', label: 'Accueil', icon: House },
     { to: '/discover', label: 'Droit Ludique', icon: Scale },
-    { to: '/documents', label: 'Bibliothèque', icon: Library },
   ]
 
   const account: { to: string; label: string; icon: typeof House; danger?: boolean }[] = []
@@ -132,15 +127,22 @@ function isNavActive(match: (p: string) => boolean) {
   return match(route.path)
 }
 
-function logout() {
-  auth.logout()
-  closeMenus()
-  router.push('/login')
-}
-
 function closeMenus() {
   menuOpen.value = false
   userMenuOpen.value = false
+  document.body.style.overflow = ''
+}
+
+async function go(to: string) {
+  closeMenus()
+  if (route.fullPath === to || route.path === to) return
+  await router.push(to)
+}
+
+function logout() {
+  auth.logout()
+  closeMenus()
+  void router.push('/login')
 }
 
 function onClickOutside(e: MouseEvent) {
@@ -166,6 +168,11 @@ watch(menuOpen, async (open) => {
   }
 })
 
+watch(
+  () => route.fullPath,
+  () => closeMenus(),
+)
+
 onMounted(() => {
   document.addEventListener('click', onClickOutside)
   document.addEventListener('keydown', onKey)
@@ -179,6 +186,7 @@ onMounted(() => {
         yPercent: -100,
         duration: 0.45,
         ease: 'power3.out',
+        clearProps: 'transform',
       })
       gsap.from('.app-header__main', {
         y: -14,
@@ -186,6 +194,7 @@ onMounted(() => {
         duration: 0.5,
         delay: 0.1,
         ease: 'power3.out',
+        clearProps: 'transform,opacity',
       })
       gsap.from('.app-header__quick-link', {
         y: 8,
@@ -194,6 +203,7 @@ onMounted(() => {
         stagger: 0.045,
         delay: 0.22,
         ease: 'power2.out',
+        clearProps: 'transform,opacity',
       })
     }, headerRef.value)
   }
@@ -289,24 +299,24 @@ onUnmounted(() => {
                   {{ auth.currentUser ? ROLE_LABELS[auth.currentUser.role] : '' }}
                 </p>
               </div>
-              <RouterLink
-                :to="dashboardLink"
+              <button
+                type="button"
                 class="app-header__dropdown-item"
                 role="menuitem"
-                @click="userMenuOpen = false"
+                @click="go(dashboardLink)"
               >
                 <LayoutDashboard class="app-header__icon app-header__icon--sm" />
                 Tableau de bord
-              </RouterLink>
-              <RouterLink
-                to="/account"
+              </button>
+              <button
+                type="button"
                 class="app-header__dropdown-item"
                 role="menuitem"
-                @click="userMenuOpen = false"
+                @click="go('/account')"
               >
                 <UserRound class="app-header__icon app-header__icon--sm" />
                 Mon compte
-              </RouterLink>
+              </button>
               <button
                 type="button"
                 class="app-header__dropdown-item app-header__dropdown-item--danger"
@@ -321,32 +331,30 @@ onUnmounted(() => {
         </template>
 
         <template v-else>
-          <RouterLink to="/login" class="app-header__tool" @click="closeMenus">
+          <button type="button" class="app-header__tool" @click="go('/login')">
             <LogIn class="app-header__icon app-header__icon--sm" />
             <span>Connexion</span>
-          </RouterLink>
-          <RouterLink to="/register" class="app-header__tool app-header__tool--solid" @click="closeMenus">
+          </button>
+          <button type="button" class="app-header__tool app-header__tool--solid" @click="go('/register')">
             <UserPlus class="app-header__icon app-header__icon--sm" />
             <span>S'inscrire</span>
-          </RouterLink>
+          </button>
         </template>
       </div>
     </div>
   </header>
 
   <Teleport to="body">
-    <AnimatePresence>
-      <motion.div
+    <Transition name="app-header-overlay">
+      <div
         v-if="menuOpen"
         key="overlay"
         class="app-header__overlay"
-        :initial="{ opacity: 0 }"
-        :animate="{ opacity: 1 }"
-        :exit="{ opacity: 0 }"
-        :transition="{ duration: 0.22 }"
         @click="closeMenus"
       />
-      <motion.div
+    </Transition>
+    <Transition name="app-header-panel">
+      <div
         v-if="menuOpen"
         id="app-header-menu"
         key="panel"
@@ -354,10 +362,6 @@ onUnmounted(() => {
         aria-modal="true"
         aria-label="Menu"
         class="app-header__panel"
-        :initial="{ x: -380 }"
-        :animate="{ x: 0 }"
-        :exit="{ x: -380 }"
-        :transition="{ type: 'spring', stiffness: 420, damping: 38 }"
       >
         <div class="app-header__panel-head">
           <AppLogo size="sm" caption="Évaluation & Formation" />
@@ -375,18 +379,16 @@ onUnmounted(() => {
         <nav class="app-header__panel-nav">
           <section v-for="group in menuGroups" :key="group.title" class="app-header__panel-group">
             <p class="app-header__panel-label">{{ group.title }}</p>
-            <motion.div
-              v-for="(item, index) in group.items"
+            <button
+              v-for="item in group.items"
               :key="item.to + item.label"
-              :initial="{ opacity: 0, x: -16 }"
-              :animate="{ opacity: 1, x: 0 }"
-              :transition="{ duration: 0.28, delay: 0.06 + index * 0.04 }"
+              type="button"
+              class="app-header__panel-link"
+              @click="go(item.to)"
             >
-              <RouterLink :to="item.to" class="app-header__panel-link" @click="closeMenus">
-                <component :is="item.icon" class="app-header__icon app-header__icon--sm" />
-                {{ item.label }}
-              </RouterLink>
-            </motion.div>
+              <component :is="item.icon" class="app-header__icon app-header__icon--sm" />
+              {{ item.label }}
+            </button>
             <button
               v-if="group.title === 'Compte' && auth.isAuthenticated"
               type="button"
@@ -398,8 +400,8 @@ onUnmounted(() => {
             </button>
           </section>
         </nav>
-      </motion.div>
-    </AnimatePresence>
+      </div>
+    </Transition>
   </Teleport>
 </template>
 
