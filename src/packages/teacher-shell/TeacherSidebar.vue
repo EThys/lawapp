@@ -87,6 +87,16 @@ function toggleGroup(item: TeacherMenuItem | AdminMenuItem) {
   openGroups.value[item.id] = !isGroupOpen(item)
 }
 
+/** Clic simple sur le parent : ouvre le groupe et va à la 1re page enfant. */
+function openGroupAndGo(item: TeacherMenuItem | AdminMenuItem) {
+  openGroups.value[item.id] = true
+  const first = item.children?.[0]
+  if (first?.to) {
+    emit('closeMobile')
+    void router.push(first.to)
+  }
+}
+
 watch(
   () => route.path,
   () => {
@@ -164,7 +174,7 @@ function logout() {
             :class="{ 'shell-sidebar__nav-item--active': isGroupActive(item) && sidebarCollapsed }"
             :title="sidebarCollapsed ? item.label : undefined"
             :aria-expanded="isGroupOpen(item)"
-            @click="toggleGroup(item)"
+            @click="openGroupAndGo(item)"
           >
             <component
               :is="(item.icon as { component?: unknown })?.component || item.icon"
@@ -174,6 +184,7 @@ function logout() {
             <ChevronDown
               class="shell-sidebar__chevron"
               :class="{ 'shell-sidebar__chevron--open': isGroupOpen(item) }"
+              @click.stop="toggleGroup(item)"
             />
           </button>
           <div

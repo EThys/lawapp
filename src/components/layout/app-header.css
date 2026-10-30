@@ -40,6 +40,7 @@
   min-height: 2.5rem;
   padding-bottom: 2px;
   color: white;
+  text-decoration: none;
   font-size: 0.75rem;
   font-weight: 500;
   letter-spacing: 0.06em;
@@ -154,6 +155,7 @@
   align-items: center;
   padding: 0.35rem 0;
   color: #171717;
+  text-decoration: none;
   font-size: 0.875rem;
   font-weight: 500;
   letter-spacing: 0.04em;
@@ -193,6 +195,8 @@
   border: 0;
   border-radius: 0.35rem;
   background: transparent;
+  text-decoration: none;
+  cursor: pointer;
   color: #171717;
   font: inherit;
   font-size: 0.75rem;
@@ -406,6 +410,8 @@
   border: 0;
   background: transparent;
   color: #171717;
+  text-decoration: none;
+  cursor: pointer;
   font-size: 1rem;
   font-weight: 500;
   letter-spacing: 0.04em;

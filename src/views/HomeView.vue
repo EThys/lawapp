@@ -2,7 +2,6 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppDecorativeBg from '@/components/ui/AppDecorativeBg.vue'
@@ -308,29 +307,32 @@ onUnmounted(() => {
           </p>
 
           <div class="hero__actions hero-anim hero-anim--3">
-            <RouterLink
+            <AppButton
               v-if="!auth.isAuthenticated"
               to="/register"
-              class="group"
+              size="lg"
+              class="hover-lift group"
             >
-              <AppButton size="lg" class="hover-lift">
-                Espace enseignant
-                <ArrowRight class="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
-              </AppButton>
-            </RouterLink>
-            <RouterLink v-else-if="auth.isTeacher" to="/teacher" class="group">
-              <AppButton size="lg" class="hover-lift">
-                Espace enseignant
-                <ArrowRight class="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
-              </AppButton>
-            </RouterLink>
-            <RouterLink
+              Espace enseignant
+              <ArrowRight class="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
+            </AppButton>
+            <AppButton
+              v-else-if="auth.isTeacher"
+              to="/teacher"
+              size="lg"
+              class="hover-lift group"
+            >
+              Espace enseignant
+              <ArrowRight class="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
+            </AppButton>
+            <AppButton
               :to="auth.isAuthenticated && auth.isStudent ? '/student' : '/register'"
+              variant="outline"
+              size="lg"
+              class="hover-lift hero__btn-outline"
             >
-              <AppButton variant="outline" size="lg" class="hover-lift hero__btn-outline">
-                {{ auth.isStudent ? 'Espace étudiant' : 'Compte étudiant' }}
-              </AppButton>
-            </RouterLink>
+              {{ auth.isStudent ? 'Espace étudiant' : 'Compte étudiant' }}
+            </AppButton>
           </div>
         </div>
 
@@ -377,26 +379,24 @@ onUnmounted(() => {
               Vous créez l’épreuve. L’étudiant la passe en ligne. Vous lisez les notes.
               Pas besoin d’installer quoi que ce soit.
             </p>
-            <RouterLink
+            <AppButton
               v-if="!auth.isAuthenticated"
               to="/register"
-              class="home-why__cta group inline-flex mt-8"
+              size="lg"
+              class="home-why__cta hover-lift group inline-flex mt-8"
             >
-              <AppButton size="lg" class="hover-lift">
-                Commencer gratuitement
-                <ArrowRight class="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
-              </AppButton>
-            </RouterLink>
-            <RouterLink
+              Commencer gratuitement
+              <ArrowRight class="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
+            </AppButton>
+            <AppButton
               v-else-if="auth.isTeacher"
               to="/teacher"
-              class="home-why__cta group inline-flex mt-8"
+              size="lg"
+              class="home-why__cta hover-lift group inline-flex mt-8"
             >
-              <AppButton size="lg" class="hover-lift">
-                Ouvrir mon espace
-                <ArrowRight class="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
-              </AppButton>
-            </RouterLink>
+              Ouvrir mon espace
+              <ArrowRight class="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
+            </AppButton>
           </div>
 
           <ul class="home-why__stats">
@@ -467,12 +467,15 @@ onUnmounted(() => {
               <p class="label-caps mb-2">{{ mod.tag }}</p>
               <h3 class="font-display text-xl text-ink mb-3">{{ mod.title }}</h3>
               <p class="text-sm text-ink-muted leading-relaxed flex-1">{{ mod.body }}</p>
-              <RouterLink :to="mod.to" class="mt-6 inline-block group/link">
-                <AppButton variant="outline" size="sm" class="hover-lift">
-                  {{ mod.cta }}
-                  <ArrowRight class="w-3.5 h-3.5 transition-transform duration-300 group-hover/link:translate-x-1" />
-                </AppButton>
-              </RouterLink>
+              <AppButton
+                :to="mod.to"
+                variant="outline"
+                size="sm"
+                class="mt-6 hover-lift group/link"
+              >
+                {{ mod.cta }}
+                <ArrowRight class="w-3.5 h-3.5 transition-transform duration-300 group-hover/link:translate-x-1" />
+              </AppButton>
             </div>
           </article>
         </div>
@@ -619,22 +622,30 @@ onUnmounted(() => {
           </p>
         </div>
         <div class="flex flex-col sm:flex-row gap-3 flex-shrink-0">
-          <RouterLink v-reveal="{ delay: 80 }" to="/discover" class="group">
-            <AppButton class="!bg-accent !text-white hover:!bg-accent-hover w-full sm:w-auto hover-lift">
-              Droit Ludique
-              <Sparkles class="w-4 h-4 transition-transform duration-300 group-hover:rotate-12" />
-            </AppButton>
-          </RouterLink>
-          <RouterLink v-reveal="{ delay: 160 }" :to="homeFooterTeacherCta.to">
-            <AppButton variant="outline" class="home-cta__btn-light w-full sm:w-auto hover-lift">
-              {{ homeFooterTeacherCta.label }}
-            </AppButton>
-          </RouterLink>
-          <RouterLink v-reveal="{ delay: 240 }" :to="homeFooterAccessCta.to">
-            <AppButton variant="outline" class="home-cta__btn-light w-full sm:w-auto hover-lift">
-              {{ homeFooterAccessCta.label }}
-            </AppButton>
-          </RouterLink>
+          <AppButton
+            v-reveal="{ delay: 80 }"
+            to="/discover"
+            class="group !bg-accent !text-white hover:!bg-accent-hover w-full sm:w-auto hover-lift"
+          >
+            Droit Ludique
+            <Sparkles class="w-4 h-4 transition-transform duration-300 group-hover:rotate-12" />
+          </AppButton>
+          <AppButton
+            v-reveal="{ delay: 160 }"
+            :to="homeFooterTeacherCta.to"
+            variant="outline"
+            class="home-cta__btn-light w-full sm:w-auto hover-lift"
+          >
+            {{ homeFooterTeacherCta.label }}
+          </AppButton>
+          <AppButton
+            v-reveal="{ delay: 240 }"
+            :to="homeFooterAccessCta.to"
+            variant="outline"
+            class="home-cta__btn-light w-full sm:w-auto hover-lift"
+          >
+            {{ homeFooterAccessCta.label }}
+          </AppButton>
         </div>
       </div>
     </section>

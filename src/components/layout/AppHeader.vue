@@ -135,8 +135,12 @@ function closeMenus() {
 
 async function go(to: string) {
   closeMenus()
-  if (route.fullPath === to || route.path === to) return
-  await router.push(to)
+  if (route.fullPath === to) return
+  try {
+    await router.push(to)
+  } catch {
+    /* navigation annulée / dupliquée */
+  }
 }
 
 function logout() {
@@ -221,7 +225,7 @@ onUnmounted(() => {
 <template>
   <header ref="headerRef" class="app-header" :class="{ 'app-header--scrolled': scrolled }">
     <div class="app-header__galaxy">
-      <nav class="app-header__galaxy-nav" aria-label="Raccourcis LawApp50">
+        <nav class="app-header__galaxy-nav" aria-label="Raccourcis LawApp50">
         <RouterLink
           v-for="item in galaxyLinks"
           :key="item.to"
@@ -331,14 +335,14 @@ onUnmounted(() => {
         </template>
 
         <template v-else>
-          <button type="button" class="app-header__tool" @click="go('/login')">
+          <RouterLink to="/login" class="app-header__tool" @click="closeMenus">
             <LogIn class="app-header__icon app-header__icon--sm" />
             <span>Connexion</span>
-          </button>
-          <button type="button" class="app-header__tool app-header__tool--solid" @click="go('/register')">
+          </RouterLink>
+          <RouterLink to="/register" class="app-header__tool app-header__tool--solid" @click="closeMenus">
             <UserPlus class="app-header__icon app-header__icon--sm" />
             <span>S'inscrire</span>
-          </button>
+          </RouterLink>
         </template>
       </div>
     </div>
@@ -379,16 +383,16 @@ onUnmounted(() => {
         <nav class="app-header__panel-nav">
           <section v-for="group in menuGroups" :key="group.title" class="app-header__panel-group">
             <p class="app-header__panel-label">{{ group.title }}</p>
-            <button
+            <RouterLink
               v-for="item in group.items"
               :key="item.to + item.label"
-              type="button"
+              :to="item.to"
               class="app-header__panel-link"
-              @click="go(item.to)"
+              @click="closeMenus"
             >
               <component :is="item.icon" class="app-header__icon app-header__icon--sm" />
               {{ item.label }}
-            </button>
+            </RouterLink>
             <button
               v-if="group.title === 'Compte' && auth.isAuthenticated"
               type="button"

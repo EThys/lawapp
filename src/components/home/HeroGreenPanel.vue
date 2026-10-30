@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { RouterLink } from 'vue-router'
 import AppButton from '@/components/ui/AppButton.vue'
 import { ArrowRight } from '@lucide/vue'
 </script>
@@ -17,12 +16,15 @@ import { ArrowRight } from '@lucide/vue'
     </p>
 
     <div class="hero-aside-content__actions hero-anim hero-anim--3">
-      <RouterLink to="/discover" class="group">
-        <AppButton variant="outline" size="lg" class="hover-lift hero-aside-content__btn">
-          Explorer le fil
-          <ArrowRight class="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
-        </AppButton>
-      </RouterLink>
+      <AppButton
+        to="/discover"
+        variant="outline"
+        size="lg"
+        class="hover-lift hero-aside-content__btn group"
+      >
+        Explorer le fil
+        <ArrowRight class="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
+      </AppButton>
     </div>
   </div>
 </template>

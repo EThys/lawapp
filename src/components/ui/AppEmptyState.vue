@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { RouterLink } from 'vue-router'
 import type { Component } from 'vue'
 import AppButton from '@/components/ui/AppButton.vue'
 
@@ -20,9 +19,7 @@ defineProps<{
     <h3 class="font-display text-lg text-ink">{{ title }}</h3>
     <p class="text-sm text-ink-muted mt-2 max-w-sm mx-auto leading-relaxed">{{ description }}</p>
     <div v-if="actionLabel && actionTo" class="mt-8">
-      <RouterLink :to="actionTo">
-        <AppButton class="hover-lift">{{ actionLabel }}</AppButton>
-      </RouterLink>
+      <AppButton :to="actionTo" class="hover-lift">{{ actionLabel }}</AppButton>
     </div>
     <slot v-else name="action" />
   </div>
