@@ -2,6 +2,19 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
+    <!-- Avant tout JS bundlé : www → apex (CORS backend = lawapp50.com sans www). -->
+    <script>
+      (function () {
+        try {
+          var host = location.hostname
+          if (!/^www\./i.test(host)) return
+          var apex = host.replace(/^www\./i, '')
+          location.replace(
+            location.protocol + '//' + apex + location.pathname + location.search + location.hash,
+          )
+        } catch (_) {}
+      })()
+    </script>
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />

@@ -10,6 +10,14 @@ import '@/components/layout/dashboard.css'
 import { isApiEnabled } from '@/config/features'
 import { resolveApiBase, resolveAuthBase } from '@/config/api'
 import { bootLoadInterruptedMessage, bootStartFailedMessage } from '@/utils/userFacingErrors'
+import { redirectWwwHostToApex } from '@/utils/canonicalHost'
+
+/** Filet de sécurité si le script inline d’index.html n’a pas tourné. */
+if (redirectWwwHostToApex()) {
+  // Navigation vers lawapp50.com (sans www) — ne pas monter Vue.
+} else {
+  bootApp()
+}
 
 function hideBootSplash() {
   const splash = document.getElementById('boot-splash')
@@ -65,15 +73,17 @@ async function bootstrap() {
   requestAnimationFrame(hideBootSplash)
 }
 
-const bootTimeout = window.setTimeout(() => {
-  if (!document.getElementById('app')?.childElementCount) {
-    showBootError(bootLoadInterruptedMessage())
-  }
-}, 12000)
+function bootApp() {
+  const bootTimeout = window.setTimeout(() => {
+    if (!document.getElementById('app')?.childElementCount) {
+      showBootError(bootLoadInterruptedMessage())
+    }
+  }, 12000)
 
-bootstrap()
-  .catch((err) => {
-    console.error('[LawApp] Échec au démarrage:', err)
-    showBootError(bootStartFailedMessage())
-  })
-  .finally(() => window.clearTimeout(bootTimeout))
+  bootstrap()
+    .catch((err) => {
+      console.error('[LawApp] Échec au démarrage:', err)
+      showBootError(bootStartFailedMessage())
+    })
+    .finally(() => window.clearTimeout(bootTimeout))
+}

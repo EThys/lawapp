@@ -1,0 +1,2 @@
+# Netlify / Cloudflare Pages — force apex (évite CORS bloqué sur www)
+https://www.lawapp50.com/*  https://lawapp50.com/:splat  301!
