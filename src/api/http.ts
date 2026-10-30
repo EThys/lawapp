@@ -123,12 +123,23 @@ export async function httpFetch<T>(url: string, options: FetchOptions = {}): Pro
 
   const run = async (retry: boolean): Promise<T> => {
     logRequest(method, url)
-    const res = await fetch(url, {
-      ...rest,
-      method,
-      headers: buildHeaders(options),
-      body: body != null ? JSON.stringify(body) : undefined,
-    })
+    let res: Response
+    try {
+      res = await fetch(url, {
+        ...rest,
+        method,
+        headers: buildHeaders(options),
+        body: body != null ? JSON.stringify(body) : undefined,
+      })
+    } catch (networkErr) {
+      if (import.meta.env.DEV) {
+        console.error(`[LawApp HTTP] network fail ${method} ${url}`, networkErr)
+      }
+      const err = new Error(
+        networkErr instanceof Error ? networkErr.message : 'Failed to fetch',
+      ) as HttpError
+      throw err
+    }
     const data = await parseBody(res)
     logResponse(method, url, res.status, data)
 

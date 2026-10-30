@@ -37,21 +37,21 @@ import AppDecorativeBg from '@/components/ui/AppDecorativeBg.vue'
 
     <!-- Right panel: form -->
     <main class="flex-1 flex flex-col min-h-app min-w-0 bg-paper pt-safe">
-      <div class="lg:hidden flex items-center justify-between px-4 sm:px-6 py-4 border-b border-line bg-white px-safe">
+      <div class="lg:hidden flex items-center justify-between py-4 border-b border-line bg-white auth-mobile-gutter">
         <RouterLink to="/" class="inline-flex" aria-label="LawApp50, accueil">
           <AppLogo size="sm" caption="Évaluation & Formation" />
         </RouterLink>
       </div>
 
       <div
-        class="flex-1 flex min-h-0 overflow-y-auto overscroll-contain items-start sm:items-center justify-center px-4 py-8 sm:px-12 sm:py-12 px-safe"
+        class="flex-1 flex min-h-0 overflow-y-auto overscroll-contain items-start sm:items-center justify-center py-8 sm:py-12 auth-mobile-gutter"
       >
         <div class="auth-panel w-full max-w-[420px] my-auto sm:my-0">
           <slot />
         </div>
       </div>
 
-      <footer class="px-4 sm:px-6 py-4 pb-safe border-t border-line text-center text-xs text-ink-faint px-safe shrink-0">
+      <footer class="py-4 pb-safe border-t border-line text-center text-xs text-ink-faint auth-mobile-gutter shrink-0">
         © {{ new Date().getFullYear() }} LawApp50 · Plateforme d'évaluation
       </footer>
     </main>

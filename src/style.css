@@ -207,9 +207,17 @@
     @apply lg:col-span-3;
   }
 
+  /* Ne jamais remplacer un px-* Tailwind par 0 : combine marge utile + safe-area. */
   .px-safe {
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
+    padding-left: max(1.25rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1.25rem, env(safe-area-inset-right, 0px));
+  }
+
+  @media (min-width: 640px) {
+    .px-safe {
+      padding-left: max(1.5rem, env(safe-area-inset-left, 0px));
+      padding-right: max(1.5rem, env(safe-area-inset-right, 0px));
+    }
   }
 
   .min-h-app {
@@ -219,6 +227,26 @@
 
   .auth-panel h1 {
     @apply text-2xl sm:text-3xl;
+  }
+
+  /* Login / register : marges latérales stables sur mobile (évite le collage aux bords). */
+  .auth-mobile-gutter {
+    padding-left: max(1.25rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1.25rem, env(safe-area-inset-right, 0px));
+  }
+
+  @media (min-width: 640px) {
+    .auth-mobile-gutter {
+      padding-left: max(2.5rem, env(safe-area-inset-left, 0px));
+      padding-right: max(2.5rem, env(safe-area-inset-right, 0px));
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .auth-mobile-gutter {
+      padding-left: max(3rem, env(safe-area-inset-left, 0px));
+      padding-right: max(3rem, env(safe-area-inset-right, 0px));
+    }
   }
 
   .auth-form-sticky {

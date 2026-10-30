@@ -22,12 +22,15 @@ export function incompleteResponseMessage(context?: string): string {
   return `${base} Actualisez la page pour vérifier.`
 }
 
-/** Échec réseau / API injoignable. */
+/** Échec réseau / API injoignable — ton calme pour l’utilisateur final. */
 export function networkUnreachableMessage(): string {
-  if (isProd) {
-    return 'Connexion impossible. Vérifiez votre connexion internet et réessayez.'
+  if (typeof location !== 'undefined' && /^www\./i.test(location.hostname)) {
+    return 'Ouvrez plutôt https://lawapp50.com (sans www), puis réessayez.'
   }
-  return 'Connexion impossible. Vérifiez votre réseau et que LawApp est bien lancée (npm run dev).'
+  if (isProd) {
+    return 'La connexion a pris trop de temps. Réessayez dans un instant.'
+  }
+  return 'Pas de réponse du serveur. Vérifiez npm run dev et l’onglet Network (POST /auth/login).'
 }
 
 export function bootLoadInterruptedMessage(): string {

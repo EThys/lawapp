@@ -934,6 +934,15 @@ export const useAuthStore = defineStore('auth', () => {
         needsProfile,
       }
     } catch (e) {
+      if (import.meta.env.DEV) {
+        const err = e as { status?: number; data?: unknown; message?: string }
+        console.error('[LawApp] login failed', {
+          status: err.status,
+          data: err.data,
+          message: err.message,
+          error: e,
+        })
+      }
       return { ok: false, error: extractApiError(e) }
     } finally {
       loading.value = false
