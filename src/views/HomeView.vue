@@ -721,22 +721,30 @@ onUnmounted(() => {
 .hero__inner {
   position: relative;
   z-index: 1;
-  max-width: 90rem;
+  width: min(72rem, calc(100% - 2.75rem));
+  max-width: 72rem;
   margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr;
   min-height: calc(100dvh - 7.5rem);
 }
 
+@media (min-width: 640px) {
+  .hero__inner {
+    width: min(72rem, calc(100% - 4.5rem));
+  }
+}
+
 @media (min-width: 1024px) {
   .hero__inner {
-    grid-template-columns: 1fr 22rem;
+    width: min(72rem, calc(100% - 7.5rem));
+    grid-template-columns: 1fr 20rem;
   }
 }
 
 @media (min-width: 1280px) {
   .hero__inner {
-    grid-template-columns: 1fr 26rem;
+    grid-template-columns: 1fr 22rem;
   }
 }
 
@@ -777,20 +785,20 @@ onUnmounted(() => {
 
 @media (min-width: 640px) {
   .hero__main {
-    padding: 4rem 2rem 3.5rem;
+    padding: 4rem 1.5rem 3.5rem;
   }
 }
 
 @media (min-width: 1024px) {
   .hero__main {
-    padding: 4rem 3rem 4rem 2rem;
+    padding: 4rem 2rem 4rem 1.25rem;
   }
 }
 
 @media (min-width: 1280px) {
   .hero__main {
-    padding-left: 3rem;
-    padding-right: 4rem;
+    padding-left: 1.5rem;
+    padding-right: 2.25rem;
   }
 }
 
@@ -896,22 +904,22 @@ onUnmounted(() => {
 
 @media (min-width: 640px) {
   .hero__aside {
-    padding: 4rem 2rem 3.5rem;
+    padding: 4rem 1.5rem 3.5rem;
   }
 }
 
 @media (min-width: 1024px) {
   .hero__aside {
     min-height: auto;
-    padding: 4rem 3rem 4rem 2.5rem;
+    padding: 4rem 1.5rem 4rem 1.75rem;
     border-left: 1px solid color-mix(in srgb, var(--color-line) 80%, transparent);
   }
 }
 
 @media (min-width: 1280px) {
   .hero__aside {
-    padding-right: 3rem;
-    padding-left: 3rem;
+    padding-right: 1.75rem;
+    padding-left: 2rem;
   }
 }
 
@@ -998,19 +1006,20 @@ onUnmounted(() => {
 }
 
 .home-shell {
-  width: min(90rem, calc(100% - 2.75rem));
+  width: min(72rem, calc(100% - 2.75rem));
+  max-width: 72rem;
   margin-inline: auto;
 }
 
 @media (min-width: 640px) {
   .home-shell {
-    width: min(90rem, calc(100% - 4rem));
+    width: min(72rem, calc(100% - 4.5rem));
   }
 }
 
 @media (min-width: 1024px) {
   .home-shell {
-    width: min(90rem, calc(100% - 6.5rem));
+    width: min(72rem, calc(100% - 7.5rem));
   }
 }
 
