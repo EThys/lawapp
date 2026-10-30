@@ -681,3 +681,46 @@ export interface QuizRequest {
   notionTypeId: number
   levels: QuizLevelRequest[]
 }
+
+/** POST /v1/private/quiz/notion-types */
+export interface QuizNotionTypeRequest {
+  code: string
+  label: string
+  description?: string
+}
+
+/** POST /v1/protected/quiz/{id}/progression */
+export interface QuizProgressUpdateRequest {
+  levelOrder: number
+  score: number
+}
+
+/** Item d’avancement pour un quiz (dans une notion). */
+export interface QuizUserProgressItem {
+  quizId: number
+  quizTitle?: string
+  notionTypeId?: number
+  highestCompletedLevelOrder?: number
+  totalLevels?: number
+  score?: number
+  progressPercent?: number
+  completed?: boolean
+}
+
+/** Avancement agrégé pour un type de notion. */
+export interface QuizNotionTypeProgress {
+  notionType?: QuizNotionType
+  totalQuizzes?: number
+  completedQuizzes?: number
+  totalLevels?: number
+  completedLevels?: number
+  totalScore?: number
+  progressPercent?: number
+  quizzes?: QuizUserProgressItem[]
+}
+
+/** GET /v1/protected/quiz/progression */
+export interface QuizUserProgressOverview {
+  userId?: number
+  notionTypes?: QuizNotionTypeProgress[]
+}

@@ -2,8 +2,11 @@ import type {
   Quiz,
   QuizDetail,
   QuizNotionType,
+  QuizNotionTypeProgress,
   QuizOptionRequest,
   QuizRequest,
+  QuizUserProgressItem,
+  QuizUserProgressOverview,
 } from '@/api/types'
 import { unwrapList, unwrapObject } from '@/utils/apiHelpers'
 
@@ -115,4 +118,79 @@ export function normalizeQuizRequest(payload: QuizRequest): QuizRequest {
       }),
     })),
   }
+}
+
+export function normalizeQuizNotionType(data: unknown): QuizNotionType | null {
+  const raw = unwrapObject<QuizNotionType>(data)
+  if (!raw || typeof raw.id !== 'number') return null
+  return raw
+}
+
+function normalizeProgressItem(raw: unknown): QuizUserProgressItem | null {
+  if (!raw || typeof raw !== 'object') return null
+  const item = raw as QuizUserProgressItem
+  if (typeof item.quizId !== 'number') return null
+  return item
+}
+
+export function normalizeQuizNotionTypeProgress(
+  data: unknown,
+): QuizNotionTypeProgress | null {
+  const raw = unwrapObject<QuizNotionTypeProgress>(data)
+  if (!raw) return null
+  const quizzes = (raw.quizzes ?? [])
+    .map(normalizeProgressItem)
+    .filter((q): q is QuizUserProgressItem => !!q)
+  return { ...raw, quizzes }
+}
+
+export function normalizeQuizProgressOverview(
+  data: unknown,
+): QuizUserProgressOverview {
+  const raw = unwrapObject<QuizUserProgressOverview>(data)
+  if (!raw) {
+    const asList = unwrapList<QuizNotionTypeProgress>(data)
+    if (asList.length) {
+      return {
+        notionTypes: asList
+          .map((n) => normalizeQuizNotionTypeProgress(n))
+          .filter((n): n is QuizNotionTypeProgress => !!n),
+      }
+    }
+    return { notionTypes: [] }
+  }
+  return {
+    userId: raw.userId,
+    notionTypes: (raw.notionTypes ?? [])
+      .map((n) => normalizeQuizNotionTypeProgress(n))
+      .filter((n): n is QuizNotionTypeProgress => !!n),
+  }
+}
+
+/** Indexe l’avancement par quizId à partir de l’overview. */
+export function flattenQuizProgressById(
+  overview: QuizUserProgressOverview | null | undefined,
+): Map<number, QuizUserProgressItem> {
+  const map = new Map<number, QuizUserProgressItem>()
+  for (const notion of overview?.notionTypes ?? []) {
+    for (const item of notion.quizzes ?? []) {
+      if (typeof item.quizId === 'number') map.set(item.quizId, item)
+    }
+  }
+  return map
+}
+
+export function scoreQuizLevel(
+  level: { questions?: Array<{ id: number; point?: number; options?: Array<{ id: number; valid?: boolean }> }> },
+  answers: Record<number, number>,
+): number {
+  let pts = 0
+  for (const q of level.questions ?? []) {
+    const chosen = answers[q.id]
+    const correct = q.options?.find((o) => o.valid)
+    if (chosen != null && correct && chosen === correct.id) {
+      pts += q.point ?? 1
+    }
+  }
+  return pts
 }

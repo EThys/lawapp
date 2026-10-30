@@ -4,10 +4,11 @@ import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useQuizStore } from '@/stores/quiz'
 import { useServerShimmer } from '@/composables/useServerShimmer'
 import AppShimmerDetail from '@/components/loading/AppShimmerDetail.vue'
-import type { QuizQuestionNode } from '@/api/types'
+import type { QuizLevelNode, QuizQuestionNode } from '@/api/types'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import AppProgressBar from '@/components/ui/AppProgressBar.vue'
+import { scoreQuizLevel } from '@/utils/quizApiMapper'
 import { ArrowLeft, CheckCircle, XCircle } from '@lucide/vue'
 
 const route = useRoute()
@@ -23,6 +24,8 @@ const answers = ref<Record<number, number>>({})
 const finished = ref(false)
 const score = ref(0)
 const maxScore = ref(0)
+const progressError = ref('')
+const syncingLevel = ref(false)
 
 const levels = computed(() => quizStore.current?.levels ?? [])
 const currentLevel = computed(() => levels.value[levelIndex.value])
@@ -39,12 +42,35 @@ const progress = computed(() =>
   totalQuestions.value ? Math.round((answeredCount.value / totalQuestions.value) * 100) : 0,
 )
 
+function levelOrderOf(level: QuizLevelNode | undefined, index: number): number {
+  return level?.levelOrder ?? index + 1
+}
+
+async function syncLevelCompletion(levelIdx: number) {
+  const level = levels.value[levelIdx]
+  if (!level || !Number.isFinite(quizId)) return
+  const levelScore = scoreQuizLevel(level, answers.value)
+  syncingLevel.value = true
+  progressError.value = ''
+  try {
+    const result = await quizStore.recordLevelProgress(quizId, {
+      levelOrder: levelOrderOf(level, levelIdx),
+      score: levelScore,
+    })
+    if (!result.ok) {
+      progressError.value = result.error
+    }
+  } finally {
+    syncingLevel.value = false
+  }
+}
+
 function selectOption(optionId: number) {
   selectedOptionId.value = optionId
 }
 
-function nextQuestion() {
-  if (!currentQuestion.value || selectedOptionId.value == null) return
+async function nextQuestion() {
+  if (!currentQuestion.value || selectedOptionId.value == null || syncingLevel.value) return
   answers.value[currentQuestion.value.id] = selectedOptionId.value
   selectedOptionId.value = null
 
@@ -52,6 +78,10 @@ function nextQuestion() {
     questionIndex.value++
     return
   }
+
+  // Fin de niveau → enregistrer la progression API
+  const completedLevelIdx = levelIndex.value
+  await syncLevelCompletion(completedLevelIdx)
 
   if (levelIndex.value < levels.value.length - 1) {
     levelIndex.value++
@@ -85,8 +115,24 @@ onMounted(async () => {
     await router.replace('/quiz')
     return
   }
-  await quizStore.fetchById(quizId)
+  await Promise.all([quizStore.fetchById(quizId), quizStore.fetchProgressOverview()])
   if (!quizStore.current) return
+
+  // Reprendre au niveau suivant le plus haut déjà complété (si connu).
+  const saved = quizStore.progressForQuiz(quizId)
+  const highest = saved?.highestCompletedLevelOrder
+  if (highest != null && highest > 0) {
+    const nextIdx = levels.value.findIndex(
+      (lvl, i) => levelOrderOf(lvl, i) > highest,
+    )
+    if (nextIdx >= 0) {
+      levelIndex.value = nextIdx
+    } else if (saved?.completed) {
+      // Tout déjà fait : afficher un récap local
+      finishQuiz()
+    }
+  }
+
   const firstAnswers = questions.value[0]
   if (firstAnswers && answers.value[firstAnswers.id]) {
     selectedOptionId.value = answers.value[firstAnswers.id]
@@ -126,6 +172,9 @@ onUnmounted(() => {
         <p class="text-sm text-ink-muted">
           {{ Math.round(maxScore ? (score / maxScore) * 100 : 0) }} % de bonnes réponses
         </p>
+        <p v-if="progressError" class="text-xs text-warning">
+          Score local enregistré ; synchronisation serveur : {{ progressError }}
+        </p>
         <RouterLink to="/quiz">
           <AppButton variant="outline">Retour aux quiz</AppButton>
         </RouterLink>
@@ -158,8 +207,19 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <AppButton class="w-full" :disabled="selectedOptionId == null" @click="nextQuestion">
-          {{ levelIndex === levels.length - 1 && questionIndex === questions.length - 1 ? 'Terminer' : 'Suivant' }}
+        <p v-if="progressError" class="text-xs text-warning">{{ progressError }}</p>
+
+        <AppButton
+          class="w-full"
+          :disabled="selectedOptionId == null || syncingLevel"
+          :loading="syncingLevel"
+          @click="nextQuestion"
+        >
+          {{
+            levelIndex === levels.length - 1 && questionIndex === questions.length - 1
+              ? 'Terminer'
+              : 'Suivant'
+          }}
         </AppButton>
       </div>
 

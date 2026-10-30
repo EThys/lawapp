@@ -64,6 +64,9 @@ const step = ref(0)
 const title = ref('')
 const description = ref('')
 const notionTypeId = ref('')
+const newNotionCode = ref('')
+const newNotionLabel = ref('')
+const showCreateNotion = ref(false)
 const levels = ref<LevelDraft[]>([emptyLevel(1)])
 const error = ref('')
 const success = ref('')
@@ -99,6 +102,29 @@ watch(
 onMounted(() => {
   if (isApiEnabled()) void quizStore.fetchNotionTypes()
 })
+
+async function submitNewNotionType() {
+  error.value = ''
+  const code = newNotionCode.value.trim()
+  const label = newNotionLabel.value.trim()
+  if (!code || !label) {
+    error.value = missingFieldsMessage([
+      ...(!code ? ['Code'] : []),
+      ...(!label ? ['Libellé'] : []),
+    ])
+    return
+  }
+  const result = await quizStore.createNotionType({ code, label })
+  if (!result.ok) {
+    error.value = result.error
+    return
+  }
+  notionTypeId.value = String(result.type.id)
+  newNotionCode.value = ''
+  newNotionLabel.value = ''
+  showCreateNotion.value = false
+  success.value = `Type « ${result.type.label || result.type.code} » créé.`
+}
 
 function addLevel() {
   levels.value.push(emptyLevel(levels.value.length + 1))
@@ -322,14 +348,53 @@ async function handleSubmit() {
               </p>
             </div>
             <AppInput
-              v-if="!notionOptions.length && !quizStore.notionTypesLoading"
+              v-if="!notionOptions.length && !quizStore.notionTypesLoading && !showCreateNotion"
               v-model="notionTypeId"
               label="Identifiant type (notionTypeId)"
               type="number"
               placeholder="Ex. 1"
-              hint="Si la liste est vide, saisissez l’ID connu côté backend."
+              hint="Si la liste est vide, saisissez l’ID connu côté backend ou créez un type."
               required
             />
+            <div class="flex flex-wrap gap-2">
+              <AppButton
+                type="button"
+                variant="ghost"
+                size="sm"
+                @click="showCreateNotion = !showCreateNotion"
+              >
+                <Plus class="w-4 h-4" />
+                {{ showCreateNotion ? 'Annuler' : 'Nouveau type de notion' }}
+              </AppButton>
+            </div>
+            <div
+              v-if="showCreateNotion"
+              class="space-y-3 p-3 border border-line bg-paper-warm/40"
+            >
+              <p class="text-xs text-ink-muted">
+                POST <code class="text-accent">/v1/private/quiz/notion-types</code>
+              </p>
+              <AppInput
+                v-model="newNotionCode"
+                label="Code"
+                placeholder="DROIT"
+                required
+              />
+              <AppInput
+                v-model="newNotionLabel"
+                label="Libellé"
+                placeholder="Droit"
+                required
+              />
+              <AppButton
+                type="button"
+                size="sm"
+                :loading="quizStore.creatingNotionType"
+                @click="submitNewNotionType"
+              >
+                Créer le type
+              </AppButton>
+            </div>
           </div>
           <AppTextarea
             v-model="description"

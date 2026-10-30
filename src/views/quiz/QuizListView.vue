@@ -15,8 +15,27 @@ const auth = useAuthStore()
 const { showShimmer: quizShimmer } = useServerShimmer(computed(() => quizStore.loading))
 const isTeacher = computed(() => auth.isTeacher)
 
+function progressLabel(quizId: number): string | null {
+  const item = quizStore.progressForQuiz(quizId)
+  if (!item) return null
+  if (item.completed) return 'Terminé'
+  if (item.progressPercent != null && item.progressPercent > 0) {
+    return `${Math.round(item.progressPercent)} %`
+  }
+  if (item.highestCompletedLevelOrder != null && item.highestCompletedLevelOrder > 0) {
+    const total = item.totalLevels
+    return total
+      ? `Niv. ${item.highestCompletedLevelOrder}/${total}`
+      : `Niv. ${item.highestCompletedLevelOrder}`
+  }
+  return null
+}
+
 onMounted(() => {
-  if (auth.isAuthenticated) void quizStore.fetchList()
+  if (!auth.isAuthenticated) return
+  void quizStore.fetchList()
+  void quizStore.fetchProgressOverview()
+  void quizStore.fetchNotionTypes()
 })
 </script>
 
@@ -77,11 +96,19 @@ onMounted(() => {
             class="block p-5 border border-line bg-white hover:border-accent hover:shadow-sm transition-all"
           >
             <div class="flex items-start justify-between gap-3">
-              <div>
+              <div class="min-w-0">
                 <h2 class="font-semibold text-ink">{{ quiz.title }}</h2>
                 <p v-if="quiz.description" class="text-sm text-ink-muted mt-1">{{ quiz.description }}</p>
               </div>
-              <AppBadge variant="brand">QCM</AppBadge>
+              <div class="flex flex-col items-end gap-1.5 flex-shrink-0">
+                <AppBadge variant="brand">QCM</AppBadge>
+                <AppBadge
+                  v-if="progressLabel(quiz.id)"
+                  :variant="quizStore.progressForQuiz(quiz.id)?.completed ? 'success' : 'muted'"
+                >
+                  {{ progressLabel(quiz.id) }}
+                </AppBadge>
+              </div>
             </div>
           </RouterLink>
         </li>
