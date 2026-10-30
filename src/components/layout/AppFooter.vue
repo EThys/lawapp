@@ -1,14 +1,56 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import AppLogo from '@/components/brand/AppLogo.vue'
 import uccLogo from '@/assets/logo_ucc.jpeg'
 
 const year = new Date().getFullYear()
 
+/** 5 emplacements partenaires — le bandeau défile automatiquement. */
+const partners = [
+  {
+    id: 'ucc',
+    name: 'Université Catholique du Congo',
+    href: 'https://ucc.ovh/',
+    logo: uccLogo,
+    placeholder: false,
+  },
+  {
+    id: 'p2',
+    name: 'Partenaire à venir',
+    href: '#',
+    logo: null,
+    placeholder: true,
+  },
+  {
+    id: 'p3',
+    name: 'Partenaire à venir',
+    href: '#',
+    logo: null,
+    placeholder: true,
+  },
+  {
+    id: 'p4',
+    name: 'Partenaire à venir',
+    href: '#',
+    logo: null,
+    placeholder: true,
+  },
+  {
+    id: 'p5',
+    name: 'Partenaire à venir',
+    href: '#',
+    logo: null,
+    placeholder: true,
+  },
+] as const
+
+/** Double la piste pour un défilement infini fluide. */
+const partnersLoop = computed(() => [...partners, ...partners])
+
 const platformLinks = [
   { label: 'Établissements & formations', to: '/register' },
   { label: 'Droit Ludique', to: '/discover' },
-  { label: 'Bibliothèque', to: '/documents' },
   { label: 'À propos', to: '/' },
 ] as const
 
@@ -34,6 +76,11 @@ const socialLinks = [
   { label: 'Facebook', icon: 'facebook' },
   { label: 'Instagram', icon: 'instagram' },
 ] as const
+
+const appStoreUrl =
+  (import.meta.env.VITE_APP_STORE_URL as string | undefined)?.trim() || '#'
+const playStoreUrl =
+  (import.meta.env.VITE_PLAY_STORE_URL as string | undefined)?.trim() || '#'
 </script>
 
 <template>
@@ -41,15 +88,32 @@ const socialLinks = [
     <section class="app-footer__partners" aria-labelledby="footer-partners-title">
       <h2 id="footer-partners-title" class="app-footer__partners-title">Nos partenaires</h2>
 
-      <a
-        class="app-footer__partner"
-        href="https://ucc.ovh/"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        <img :src="uccLogo" alt="" />
-        <span>Université Catholique du Congo</span>
-      </a>
+      <div class="app-footer__partners-viewport" role="presentation">
+        <div class="app-footer__partners-track" aria-label="Liste des partenaires">
+          <component
+            :is="partner.placeholder ? 'div' : 'a'"
+            v-for="(partner, index) in partnersLoop"
+            :key="`${partner.id}-${index}`"
+            class="app-footer__partner"
+            :class="{ 'app-footer__partner--placeholder': partner.placeholder }"
+            v-bind="
+              partner.placeholder
+                ? { role: 'presentation', 'aria-hidden': index >= partners.length ? true : undefined }
+                : {
+                    href: partner.href,
+                    target: '_blank',
+                    rel: 'noopener noreferrer',
+                    'aria-hidden': index >= partners.length ? true : undefined,
+                    tabindex: index >= partners.length ? -1 : undefined,
+                  }
+            "
+          >
+            <img v-if="partner.logo" :src="partner.logo" alt="" />
+            <span v-else class="app-footer__partner-mark" aria-hidden="true">+</span>
+            <span>{{ partner.name }}</span>
+          </component>
+        </div>
+      </div>
     </section>
 
     <div class="app-footer__sheet">
@@ -87,13 +151,39 @@ const socialLinks = [
         </div>
 
         <div>
-          <h2 class="app-footer__heading">Rejoindre</h2>
-          <p class="app-footer__join-kicker">Créer un espace ou se connecter</p>
-          <div class="app-footer__join">
-            <RouterLink to="/register" class="app-footer__join-btn">Créer un compte</RouterLink>
-            <RouterLink to="/login" class="app-footer__join-btn app-footer__join-btn--ghost">
-              Se connecter
-            </RouterLink>
+          <h2 class="app-footer__heading">Télécharger</h2>
+          <p class="app-footer__join-kicker">Disponible sur mobile</p>
+          <div class="app-footer__stores">
+            <a
+              class="app-footer__store-badge"
+              :href="appStoreUrl"
+              :target="appStoreUrl === '#' ? undefined : '_blank'"
+              :rel="appStoreUrl === '#' ? undefined : 'noopener noreferrer'"
+              aria-label="Télécharger sur l’App Store"
+            >
+              <img
+                src="/footer-badge-app-store.svg"
+                alt="Télécharger dans l’App Store"
+                width="140"
+                height="42"
+                loading="lazy"
+              />
+            </a>
+            <a
+              class="app-footer__store-badge"
+              :href="playStoreUrl"
+              :target="playStoreUrl === '#' ? undefined : '_blank'"
+              :rel="playStoreUrl === '#' ? undefined : 'noopener noreferrer'"
+              aria-label="Télécharger sur Google Play"
+            >
+              <img
+                src="/footer-badge-google-play.svg"
+                alt="Disponible sur Google Play"
+                width="140"
+                height="42"
+                loading="lazy"
+              />
+            </a>
           </div>
           <div class="app-footer__social">
             <a
