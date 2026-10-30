@@ -1,37 +1,81 @@
-import { rootGet, rootPost, apiGet } from '@/api/http'
+import { apiGet, apiPost } from '@/api/http'
 import { unwrapList, unwrapObject } from '@/utils/apiHelpers'
 import type { DocumentEntity, DocumentRequest, TypeDocumentEntity } from '@/api/types'
 
+function asDocument(raw: unknown): DocumentEntity | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  const id = typeof o.id === 'number' ? o.id : Number(o.id)
+  if (!Number.isFinite(id)) return null
+  return {
+    ...(o as unknown as DocumentEntity),
+    id,
+    title:
+      (typeof o.title === 'string' && o.title) ||
+      (typeof o.titre === 'string' && o.titre) ||
+      undefined,
+    description:
+      (typeof o.description === 'string' && o.description) ||
+      (typeof o.desc === 'string' && o.desc) ||
+      undefined,
+  }
+}
+
+/** Réponse Swagger : objet `{ clé: DocumentEntity[] }` ou tableau. */
 function unwrapDocuments(data: unknown): DocumentEntity[] {
-  return unwrapList<DocumentEntity>(data).filter((d) => d && typeof d.id === 'number')
+  const out: DocumentEntity[] = []
+  const seen = new Set<number>()
+
+  const push = (item: unknown) => {
+    const doc = asDocument(item)
+    if (!doc || seen.has(doc.id)) return
+    seen.add(doc.id)
+    out.push(doc)
+  }
+
+  if (Array.isArray(data)) {
+    data.forEach(push)
+    return out
+  }
+
+  if (data && typeof data === 'object') {
+    for (const val of Object.values(data as Record<string, unknown>)) {
+      if (Array.isArray(val)) val.forEach(push)
+      else push(val)
+    }
+  }
+
+  if (!out.length) {
+    for (const item of unwrapList<unknown>(data)) push(item)
+  }
+  return out
 }
 
 function unwrapDocument(data: unknown): DocumentEntity | null {
-  const direct = unwrapObject<DocumentEntity>(data)
-  if (direct && typeof direct.id === 'number') return direct
-  const list = unwrapDocuments(data)
-  return list[0] ?? null
+  const direct = asDocument(unwrapObject<DocumentEntity>(data))
+  if (direct) return direct
+  return unwrapDocuments(data)[0] ?? null
 }
 
-/** GET /protected/document — liste des documents (Swagger document-controller). */
+/** GET /api/v1/protected/document — liste des documents. */
 export async function listDocuments(): Promise<DocumentEntity[]> {
-  const data = await rootGet<unknown>('protected/document')
+  const data = await apiGet<unknown>('protected/document')
   return unwrapDocuments(data)
 }
 
-/** GET /private/document/{id} — détail d'un document. */
+/** GET /api/v1/private/document/{id} — détail. */
 export async function getDocumentById(id: number): Promise<DocumentEntity | null> {
-  const data = await rootGet<unknown>(`private/document/${id}`)
+  const data = await apiGet<unknown>(`private/document/${id}`)
   return unwrapDocument(data)
 }
 
-/** POST /private/document — création d'un document. */
+/** POST /api/v1/private/document — création. */
 export async function createDocument(payload: DocumentRequest): Promise<DocumentEntity | null> {
-  const data = await rootPost<unknown>('private/document', payload)
+  const data = await apiPost<unknown>('private/document', payload)
   return unwrapDocument(data)
 }
 
-/** GET /api/v1/protected/type-document — types de documents (catalogue). */
+/** GET /api/v1/protected/type-document — types. */
 export async function listTypeDocuments(): Promise<TypeDocumentEntity[]> {
   const data = await apiGet<unknown>('protected/type-document')
   return unwrapList<TypeDocumentEntity>(data).filter((t) => t && typeof t.id === 'number')
