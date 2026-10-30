@@ -102,15 +102,46 @@ export function exportToCsv(rows: string[][]): string {
   return rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n')
 }
 
+/** Fin de validité : date seule → fin de journée locale ; sinon parse ISO. */
+export function parseEvaluationBoundary(
+  isoOrDate: string | null | undefined,
+  edge: 'start' | 'end',
+): Date | null {
+  if (!isoOrDate?.trim()) return null
+  const raw = isoOrDate.trim()
+  const dayOnly = raw.slice(0, 10)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dayOnly) && (raw.length === 10 || raw[10] === 'T')) {
+    // Si seule la date (ou minuit implicite métier), borner au début / fin de journée locale.
+    if (raw.length === 10 || /T00:00:00/.test(raw)) {
+      return new Date(
+        edge === 'start' ? `${dayOnly}T00:00:00.000` : `${dayOnly}T23:59:59.999`,
+      )
+    }
+  }
+  const d = new Date(raw)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+export function isEvaluationPastDeadline(evaluation: {
+  availableUntil?: string | null
+  status?: string
+}): boolean {
+  if (evaluation.status === 'closed') return true
+  const until = parseEvaluationBoundary(evaluation.availableUntil, 'end')
+  if (!until) return false
+  return Date.now() > until.getTime()
+}
+
 export function isEvaluationAvailable(evaluation: {
   availableFrom: string | null
   availableUntil?: string | null
   status: string
 }): boolean {
   if (evaluation.status === 'draft' || evaluation.status === 'closed') return false
-  const now = new Date()
-  if (evaluation.availableFrom && new Date(evaluation.availableFrom) > now) return false
-  if (evaluation.availableUntil && new Date(evaluation.availableUntil) < now) return false
+  const now = Date.now()
+  const from = parseEvaluationBoundary(evaluation.availableFrom, 'start')
+  if (from && from.getTime() > now) return false
+  if (isEvaluationPastDeadline(evaluation)) return false
   return true
 }
 
@@ -119,15 +150,21 @@ export function getEvaluationAvailabilityMessage(evaluation: {
   availableUntil?: string | null
   title: string
 }): string | null {
-  const now = new Date()
-  if (evaluation.availableFrom && new Date(evaluation.availableFrom) > now) {
+  const now = Date.now()
+  const from = parseEvaluationBoundary(evaluation.availableFrom, 'start')
+  if (from && from.getTime() > now) {
     const until = evaluation.availableUntil
       ? ` et se clôture le ${formatDate(evaluation.availableUntil)}`
       : ''
-    return `L'évaluation « ${evaluation.title} » sera disponible le ${formatDate(evaluation.availableFrom)}${until}.`
+    return `L'évaluation « ${evaluation.title} » sera disponible le ${formatDate(evaluation.availableFrom!)}${until}.`
   }
-  if (evaluation.availableUntil && new Date(evaluation.availableUntil) < now) {
-    return `L'évaluation « ${evaluation.title} » n'est plus accessible (date limite dépassée le ${formatDate(evaluation.availableUntil)}).`
+  if (isEvaluationPastDeadline(evaluation)) {
+    const untilLabel = evaluation.availableUntil
+      ? formatDate(evaluation.availableUntil)
+      : ''
+    return untilLabel
+      ? `L'évaluation « ${evaluation.title} » n'est plus accessible (date limite dépassée le ${untilLabel}).`
+      : `L'évaluation « ${evaluation.title} » n'est plus accessible.`
   }
   return null
 }

@@ -91,10 +91,15 @@ export function getEvaluationJoinBlockReason(
 }
 
 export function evaluationAvailabilityLabel(evaluation: Evaluation): 'open' | 'upcoming' | 'closed' {
-  const now = new Date()
   if (evaluation.status === 'closed') return 'closed'
-  if (evaluation.availableUntil && new Date(evaluation.availableUntil) < now) return 'closed'
-  if (evaluation.availableFrom && new Date(evaluation.availableFrom) > now) return 'upcoming'
-  if (!isEvaluationAvailable(evaluation)) return 'closed'
+  if (!isEvaluationAvailable(evaluation)) {
+    const msg = getEvaluationAvailabilityMessage({
+      availableFrom: evaluation.availableFrom ?? null,
+      availableUntil: evaluation.availableUntil ?? null,
+      title: evaluation.title,
+    })
+    if (msg?.includes('sera disponible')) return 'upcoming'
+    return 'closed'
+  }
   return 'open'
 }

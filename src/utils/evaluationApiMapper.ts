@@ -53,14 +53,28 @@ export function parseApiEvaluationId(codeOrId: string): number | null {
   return null
 }
 
+function apiDateToAvailableIso(date?: string, endOfDay = false): string | null {
+  if (!date?.trim()) return null
+  const raw = date.trim()
+  const day = raw.slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return raw
+  // Date seule → début / fin de journée (évite de laisser passer le jour J après minuit).
+  if (raw.length === 10) {
+    return endOfDay ? `${day}T23:59:59.999` : `${day}T00:00:00.000`
+  }
+  return raw
+}
+
 function inferStatus(startDate?: string, endDate?: string): EvaluationStatus {
   const now = Date.now()
   if (endDate) {
-    const end = new Date(endDate).getTime()
-    if (!Number.isNaN(end) && now > end + 86400000) return 'closed'
+    const endIso = apiDateToAvailableIso(endDate, true)
+    const end = endIso ? new Date(endIso).getTime() : NaN
+    if (!Number.isNaN(end) && now > end) return 'closed'
   }
   if (startDate) {
-    const start = new Date(startDate).getTime()
+    const startIso = apiDateToAvailableIso(startDate, false)
+    const start = startIso ? new Date(startIso).getTime() : NaN
     if (!Number.isNaN(start) && now < start) return 'draft'
   }
   return 'active'
@@ -178,8 +192,8 @@ export function mapApiEvaluationToLocal(
     teacherId: API_TEACHER_ID,
     teacherName,
     subject: 'Général',
-    availableFrom: api.startDate ? `${api.startDate}T00:00:00.000Z` : null,
-    availableUntil: api.endDate ? `${api.endDate}T23:59:59.000Z` : null,
+    availableFrom: apiDateToAvailableIso(api.startDate, false),
+    availableUntil: apiDateToAvailableIso(api.endDate, true),
     correctionPdfName: null,
     correctionPdfData: null,
     correctionPublished: false,
@@ -218,8 +232,8 @@ export function mapAnswerableSummaryToLocal(
     teacherId: API_TEACHER_ID,
     teacherName,
     subject: 'Général',
-    availableFrom: summary.startDate ? `${summary.startDate}T00:00:00.000Z` : null,
-    availableUntil: summary.endDate ? `${summary.endDate}T23:59:59.000Z` : null,
+    availableFrom: apiDateToAvailableIso(summary.startDate, false),
+    availableUntil: apiDateToAvailableIso(summary.endDate, true),
     correctionPdfName: null,
     correctionPdfData: null,
     correctionPublished: false,
@@ -412,8 +426,8 @@ export function mapPassageToEvaluation(passage: EvaluationPassageView): Evaluati
     teacherId: API_TEACHER_ID,
     teacherName: 'Enseignant',
     subject: 'Général',
-    availableFrom: passage.startDate ? `${passage.startDate}T00:00:00.000Z` : null,
-    availableUntil: passage.endDate ? `${passage.endDate}T23:59:59.000Z` : null,
+    availableFrom: apiDateToAvailableIso(passage.startDate, false),
+    availableUntil: apiDateToAvailableIso(passage.endDate, true),
     correctionPdfName: null,
     correctionPdfData: null,
     correctionPublished: false,

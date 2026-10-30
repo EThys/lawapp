@@ -25,6 +25,7 @@ import {
   CircleHelp,
   ListChecks,
   X,
+  Home,
 } from '@lucide/vue'
 
 const route = useRoute()
@@ -272,6 +273,16 @@ function handleTimerExpired() {
   submitExam('expired')
 }
 
+function leaveAfterTimeUp() {
+  timeUpOverlay.value = false
+  const s = store.getSession(sessionId)
+  if (s && (s.status === 'submitted' || s.status === 'expired')) {
+    void router.replace(`/exam/${sessionId}/result`)
+    return
+  }
+  void router.replace('/student')
+}
+
 function submitExam(status: 'submitted' | 'expired' = 'submitted') {
   if (isSubmitting.value) return
   if (examEnded.value && status !== 'expired') return
@@ -282,7 +293,13 @@ function submitExam(status: 'submitted' | 'expired' = 'submitted') {
   const eval_ = evaluation.value
   if (!eval_) {
     isSubmitting.value = false
-    submitError.value = 'Évaluation introuvable. Rejoignez l’épreuve depuis votre espace.'
+    if (status === 'expired') {
+      examEnded.value = true
+      timeUpOverlay.value = true
+      submitError.value = 'Évaluation introuvable. Vous pouvez retourner à votre espace.'
+    } else {
+      submitError.value = 'Évaluation introuvable. Rejoignez l’épreuve depuis votre espace.'
+    }
     return
   }
 
@@ -294,11 +311,16 @@ function submitExam(status: 'submitted' | 'expired' = 'submitted') {
       const apiId = resolveExamApiId()
       if (apiId == null) {
         isSubmitting.value = false
-        examEnded.value = false
         submitError.value =
-          'Envoi impossible : identifiant d’évaluation manquant. Revenez au tableau de bord et relancez l’épreuve.'
+          'Envoi impossible : identifiant d’évaluation manquant. Retournez à votre espace étudiant.'
+        if (status === 'expired') {
+          examEnded.value = true
+          timeUpOverlay.value = true
+        } else {
+          examEnded.value = false
+        }
         if (import.meta.env.DEV) {
-          console.warn('[LawApp] submit skipped — no apiId', {
+          console.warn('[LawApp] submit skipped - no apiId', {
             evaluationId: eval_.id,
             code: eval_.code,
             apiId: eval_.apiId,
@@ -317,15 +339,31 @@ function submitExam(status: 'submitted' | 'expired' = 'submitted') {
       })
       if (!result.ok) {
         isSubmitting.value = false
-        examEnded.value = false
         submitError.value =
           result.error ||
-          'Impossible d\'envoyer vos réponses. Vérifiez votre connexion et réessayez.'
+          'Impossible d\'envoyer vos réponses. Réessayez ou retournez à votre espace.'
+        if (status === 'expired') {
+          examEnded.value = true
+          timeUpOverlay.value = true
+          // Conserve quand même la session locale pour le résultat.
+          store.updateSession(sessionId, {
+            status: 'expired',
+            submittedAt: new Date().toISOString(),
+            score,
+            maxScore,
+            violations: [...violations.value],
+            timeSpentSeconds: spent,
+            answers: [...answers.value],
+            apiEvaluationId: apiId,
+          })
+        } else {
+          examEnded.value = false
+        }
         return
       }
       await store.loadMySubmission(result.apiId, sessionId, { force: true })
     } else if (import.meta.env.DEV) {
-      console.warn('[LawApp] submit local only — VITE_USE_API=false')
+      console.warn('[LawApp] submit local only - VITE_USE_API=false')
     }
 
     examEnded.value = true
@@ -348,6 +386,7 @@ function submitExam(status: 'submitted' | 'expired' = 'submitted') {
       apiEvaluationId: resolveExamApiId() ?? undefined,
     })
 
+    timeUpOverlay.value = false
     await router.replace(`/exam/${sessionId}/result`)
   })()
 }
@@ -669,10 +708,17 @@ onUnmounted(() => {
           <Clock class="w-14 h-14 mx-auto text-accent" />
           <h2 class="font-display text-2xl sm:text-3xl text-ink">Temps écoulé</h2>
           <p class="text-sm sm:text-base text-ink-muted leading-relaxed">
-            Merci pour votre participation. Vos réponses sont en cours d’enregistrement — merci de ne pas
-            fermer cette page.
+            Merci pour votre participation. Vos réponses sont en cours d’enregistrement.
+            Merci de ne pas fermer cette page.
           </p>
           <p v-if="isSubmitting" class="text-xs text-ink-faint animate-pulse">Envoi en cours…</p>
+          <p v-if="submitError && !isSubmitting" class="text-sm text-danger">{{ submitError }}</p>
+          <div v-if="!isSubmitting" class="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+            <AppButton class="w-full sm:w-auto" @click="leaveAfterTimeUp">
+              <Home class="w-4 h-4" />
+              Retour à l’espace étudiant
+            </AppButton>
+          </div>
         </div>
       </div>
     </Transition>

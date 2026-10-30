@@ -11,7 +11,7 @@ import type {
   StudentAnswer,
 } from '@/types'
 import { DEFAULT_ANTI_CHEAT, DEFAULT_SETTINGS } from '@/types'
-import { generateId, generateCode } from '@/utils/helpers'
+import { generateId, generateCode, getEvaluationAvailabilityMessage, isEvaluationAvailable } from '@/utils/helpers'
 import {
   computeAccessCodeExpiresAt,
   isCohortEvaluation,
@@ -339,12 +339,23 @@ export const useEvaluationStore = defineStore('evaluations', () => {
     )
   }
 
-  /** Exclure du catalogue local les épreuves déjà terminées (sans N× GET ma-soumission). */
+  /** Exclure du catalogue : déjà passées par l’étudiant OU date limite dépassée. */
   function filterAnswerableStillOpen(list: EvaluationAnswerableSummary[]): EvaluationAnswerableSummary[] {
     const auth = useAuthStore()
     const studentId = auth.currentUser?.id
-    if (!studentId || !list.length) return list
-    return list.filter((item) => !studentFinishedApiEvaluation(studentId, item.id))
+    if (!list.length) return list
+    const now = Date.now()
+    return list.filter((item) => {
+      if (studentId && studentFinishedApiEvaluation(studentId, item.id)) return false
+      if (item.endDate) {
+        const day = String(item.endDate).slice(0, 10)
+        const end = /^\d{4}-\d{2}-\d{2}$/.test(day)
+          ? new Date(`${day}T23:59:59.999`).getTime()
+          : new Date(item.endDate).getTime()
+        if (!Number.isNaN(end) && now > end) return false
+      }
+      return true
+    })
   }
 
   function studentFinishedApiEvaluation(studentUserId: string, apiEvaluationId: number): boolean {
@@ -1227,6 +1238,16 @@ export const useEvaluationStore = defineStore('evaluations', () => {
     studentLastName: string
     studentId: string
   }): ExamSession {
+    if (!isEvaluationAvailable(data.evaluation)) {
+      throw new Error(
+        getEvaluationAvailabilityMessage({
+          availableFrom: data.evaluation.availableFrom ?? null,
+          availableUntil: data.evaluation.availableUntil ?? null,
+          title: data.evaluation.title,
+        }) ||
+          "Cette évaluation n'est plus accessible.",
+      )
+    }
     const now = new Date()
     const session: ExamSession = {
       id: generateId(),
@@ -1301,6 +1322,9 @@ export const useEvaluationStore = defineStore('evaluations', () => {
 
     if (session.status !== 'pending') return null
 
+    // Date limite dépassée : ne plus démarrer une nouvelle tentative.
+    if (!isEvaluationAvailable(evaluation)) return null
+
     const now = new Date()
     const mins = resolveEvaluationDurationMinutes(evaluation) ?? 60
     updateSession(sessionId, {
@@ -1345,6 +1369,7 @@ export const useEvaluationStore = defineStore('evaluations', () => {
           e.apiId != null &&
           forMeIds.has(e.apiId) &&
           e.status === 'active' &&
+          isEvaluationAvailable(e) &&
           !studentAlreadyFinishedEvaluation(e, studentUserId),
       )
       return sortEvaluationsNewestFirst(list)
@@ -1352,6 +1377,7 @@ export const useEvaluationStore = defineStore('evaluations', () => {
     const list = evaluations.value.filter(
       (e) =>
         e.status === 'active' &&
+        isEvaluationAvailable(e) &&
         !studentAlreadyFinishedEvaluation(e, studentUserId) &&
         studentMatchesEvaluationAudience(e, user, studentUserId),
     )
@@ -1369,7 +1395,8 @@ export const useEvaluationStore = defineStore('evaluations', () => {
           e.isFromApi &&
           e.apiId != null &&
           answerableIds.has(e.apiId) &&
-          !forMeIds.has(e.apiId),
+          !forMeIds.has(e.apiId) &&
+          isEvaluationAvailable(e),
       )
       if (studentId) {
         list = list.filter((e) => !studentAlreadyFinishedEvaluation(e, studentId))
@@ -1386,6 +1413,7 @@ export const useEvaluationStore = defineStore('evaluations', () => {
       evaluations.value.filter(
         (e) =>
           e.status === 'active' &&
+          isEvaluationAvailable(e) &&
           isOpenCatalogEvaluation(e) &&
           !personalizedIds.has(e.id),
       ),
@@ -1417,7 +1445,7 @@ export const useEvaluationStore = defineStore('evaluations', () => {
       courseStore.getCoursesForStudent(studentUserId).map((c) => c.id),
     )
     const list = evaluations.value.filter((e) => {
-      if (e.status !== 'active' || !isCohortEvaluation(e)) return false
+      if (e.status !== 'active' || !isCohortEvaluation(e) || !isEvaluationAvailable(e)) return false
       if (studentAlreadyFinishedEvaluation(e, studentUserId)) return false
       const cid = e.audienceClassroomId ?? e.courseId
       return !!cid && enrolledIds.has(cid)
@@ -1437,6 +1465,7 @@ export const useEvaluationStore = defineStore('evaluations', () => {
     return evaluations.value.filter(
       (e) =>
         e.status === 'active' &&
+        isEvaluationAvailable(e) &&
         !!e.sharedToClassAt &&
         !e.requiresAccessCode &&
         !!e.courseId &&
@@ -1450,6 +1479,7 @@ export const useEvaluationStore = defineStore('evaluations', () => {
     return evaluations.value.filter(
       (e) =>
         e.status === 'active' &&
+        isEvaluationAvailable(e) &&
         e.requiresAccessCode &&
         !!e.sharedToClassAt &&
         (!e.courseId || courseIds.has(e.courseId)),

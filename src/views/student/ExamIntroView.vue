@@ -9,7 +9,7 @@ import {
 } from '@/utils/evaluationApiMapper'
 import { requestExamFullscreen } from '@/composables/useAntiCheat'
 import AppButton from '@/components/ui/AppButton.vue'
-import { formatMinutes } from '@/utils/helpers'
+import { formatMinutes, getEvaluationAvailabilityMessage, isEvaluationAvailable } from '@/utils/helpers'
 import {
   Shield,
   Clock,
@@ -120,6 +120,18 @@ async function ensureMandatoryFullscreen(): Promise<boolean> {
   return entered
 }
 
+const deadlineBlockMessage = computed(() => {
+  const ev = evaluation.value
+  if (!ev || isEvaluationAvailable(ev)) return null
+  return (
+    getEvaluationAvailabilityMessage({
+      availableFrom: ev.availableFrom ?? null,
+      availableUntil: ev.availableUntil ?? null,
+      title: ev.title,
+    }) || "Cette évaluation n'est plus accessible (date limite dépassée)."
+  )
+})
+
 async function startExam() {
   startError.value = ''
   starting.value = true
@@ -136,17 +148,22 @@ async function startExam() {
       return
     }
 
+    if (current.status === 'in_progress') {
+      if (!(await ensureMandatoryFullscreen())) return
+      await router.push(`/exam/${sessionId}`)
+      return
+    }
+
+    if (deadlineBlockMessage.value) {
+      startError.value = deadlineBlockMessage.value
+      return
+    }
+
     const ok = await ensurePassageLoaded()
     if (!ok) {
       startError.value =
         store.apiError ||
         'Impossible de charger la feuille d\'évaluation (passage). Réessayez.'
-      return
-    }
-
-    if (current.status === 'in_progress') {
-      if (!(await ensureMandatoryFullscreen())) return
-      await router.push(`/exam/${sessionId}`)
       return
     }
 
@@ -159,7 +176,9 @@ async function startExam() {
         await router.push(`/exam/${sessionId}`)
         return
       }
-      startError.value = 'Impossible de démarrer l\'évaluation. Réessayez depuis votre espace étudiant.'
+      startError.value =
+        deadlineBlockMessage.value ||
+        'Impossible de démarrer l\'évaluation. Réessayez depuis votre espace étudiant.'
       return
     }
 
@@ -182,6 +201,12 @@ onMounted(() => {
 
   if (['submitted', 'failed', 'expired'].includes(session.value.status)) {
     router.replace(`/exam/${sessionId}/result`)
+    return
+  }
+
+  if (deadlineBlockMessage.value) {
+    startError.value = deadlineBlockMessage.value
+    ready.value = true
     return
   }
 
@@ -297,10 +322,24 @@ onMounted(() => {
         <p v-if="startError" class="text-xs text-danger">{{ startError }}</p>
       </div>
 
-      <div class="flex-shrink-0 px-5 py-4 border-t border-line bg-paper/90 pb-safe">
-        <AppButton class="w-full" size="lg" :loading="starting" @click="startExam">
+      <div class="flex-shrink-0 px-5 py-4 border-t border-line bg-paper/90 pb-safe space-y-2">
+        <AppButton
+          v-if="!deadlineBlockMessage"
+          class="w-full"
+          size="lg"
+          :loading="starting"
+          @click="startExam"
+        >
           Commencer l’évaluation
           <ArrowRight class="w-4 h-4" />
+        </AppButton>
+        <AppButton
+          class="w-full"
+          :variant="deadlineBlockMessage ? 'primary' : 'outline'"
+          size="lg"
+          @click="router.push('/student')"
+        >
+          Retour à mon espace
         </AppButton>
       </div>
     </div>

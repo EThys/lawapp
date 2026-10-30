@@ -305,6 +305,18 @@ async function joinEvaluation() {
 
   const existing = evalStore.getActiveSessionForStudent(foundEvaluation.value.id, user.id)
   if (existing) {
+    if (existing.status === 'pending') {
+      const pendingBlock = evaluationBlockReason(foundEvaluation.value)
+      if (pendingBlock) {
+        reportStudentIssue(
+          pendingBlock,
+          pendingBlock.includes('sera disponible') || pendingBlock.includes('pas encore')
+            ? 'schedule'
+            : 'error',
+        )
+        return
+      }
+    }
     await router.push(evalStore.getExamEntryPath(existing))
     return
   }
@@ -319,17 +331,33 @@ async function joinEvaluation() {
       return
     }
     foundEvaluation.value = passageEval
+    const afterPassage = evaluationBlockReason(passageEval)
+    if (afterPassage) {
+      reportStudentIssue(
+        afterPassage,
+        afterPassage.includes('sera disponible') || afterPassage.includes('pas encore')
+          ? 'schedule'
+          : 'error',
+      )
+      return
+    }
   }
 
-  const session = evalStore.createSession({
-    evaluation: foundEvaluation.value,
-    studentUserId: user.id,
-    studentFirstName: profile.value.firstName,
-    studentLastName: profile.value.lastName,
-    studentId,
-  })
-
-  await router.push(evalStore.getExamEntryPath(session))
+  try {
+    const session = evalStore.createSession({
+      evaluation: foundEvaluation.value,
+      studentUserId: user.id,
+      studentFirstName: profile.value.firstName,
+      studentLastName: profile.value.lastName,
+      studentId,
+    })
+    await router.push(evalStore.getExamEntryPath(session))
+  } catch (e) {
+    reportStudentIssue(
+      e instanceof Error ? e.message : "Cette évaluation n'est plus accessible.",
+      'error',
+    )
+  }
 }
 
 function isPresentToday(courseId: string): boolean {
@@ -364,6 +392,15 @@ function markAllNotificationsRead() {
 
 function sessionResumeLink(session: (typeof mySessions.value)[0]) {
   return evalStore.getExamEntryPath(session)
+}
+
+/** Pending : bloqué si date dépassée ; in_progress : reprise autorisée. */
+function canResumeSession(session: (typeof mySessions.value)[0]): boolean {
+  if (session.status === 'in_progress') return true
+  if (session.status !== 'pending') return false
+  const evaluation = evalStore.getById(session.evaluationId)
+  if (!evaluation) return false
+  return !evaluationBlockReason(evaluation)
 }
 
 function statusLabel(status: string) {
@@ -1004,12 +1041,18 @@ onUnmounted(() => {
                   {{ statusLabel(session.status) }}
                 </AppBadge>
                 <RouterLink
-                  v-if="session.status === 'pending' || session.status === 'in_progress'"
+                  v-if="canResumeSession(session)"
                   :to="sessionResumeLink(session)"
                   class="inline-flex items-center min-h-11 px-2 text-xs text-accent hover:text-accent-hover font-medium"
                 >
                   {{ session.status === 'pending' ? 'Commencer' : 'Reprendre' }}
                 </RouterLink>
+                <span
+                  v-else-if="session.status === 'pending'"
+                  class="text-xs text-ink-faint"
+                >
+                  Date limite dépassée
+                </span>
                 <RouterLink
                   v-else
                   :to="studentResultPath(session)"

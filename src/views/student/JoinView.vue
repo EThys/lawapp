@@ -100,23 +100,49 @@ async function joinEvaluation() {
     return
   }
 
+  const block = getEvaluationJoinBlockReason(
+    foundEvaluation.value,
+    auth.currentUser?.id,
+    undefined,
+    auth.currentUser,
+  )
+  if (block) {
+    joinError.value = block
+    return
+  }
+
   const existing = store.getActiveSessionByStudentId(
     foundEvaluation.value.id,
     studentId.value.trim()
   )
   if (existing) {
+    if (existing.status === 'pending') {
+      const pendingBlock = getEvaluationJoinBlockReason(
+        foundEvaluation.value,
+        auth.currentUser?.id,
+        undefined,
+        auth.currentUser,
+      )
+      if (pendingBlock) {
+        joinError.value = pendingBlock
+        return
+      }
+    }
     await router.push(store.getExamEntryPath(existing))
     return
   }
 
-  const session = store.createSession({
-    evaluation: foundEvaluation.value,
-    studentFirstName: firstName.value.trim(),
-    studentLastName: lastName.value.trim(),
-    studentId: studentId.value.trim(),
-  })
-
-  await router.push(store.getExamEntryPath(session))
+  try {
+    const session = store.createSession({
+      evaluation: foundEvaluation.value,
+      studentFirstName: firstName.value.trim(),
+      studentLastName: lastName.value.trim(),
+      studentId: studentId.value.trim(),
+    })
+    await router.push(store.getExamEntryPath(session))
+  } catch (e) {
+    joinError.value = e instanceof Error ? e.message : "Cette évaluation n'est plus accessible."
+  }
 }
 </script>
 
